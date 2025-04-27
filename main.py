@@ -21,7 +21,8 @@ def save_quotes(quotes):
         json.dump(quotes, f, indent=2)
 
 def play_beep():
-    curses.beep()
+    sound_file = "/home/mojtaba/cursrs-test/beep.wav"  # Replace with the actual path to your sound file
+    os.system(f"aplay -q {sound_file} &") # -q for quiet, & to run in background
 
 def add_quote(stdscr, quotes):
     curses.echo()
@@ -76,7 +77,7 @@ def main(stdscr):
 
     curses.start_color()
     curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Main text
-    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)  # Menu
+    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_GREEN)  # Menu
     curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Border
 
     quotes = load_quotes()
@@ -100,7 +101,7 @@ def main(stdscr):
             stdscr.addstr(i, (width // 2) - (len(line) // 2), line, curses.color_pair(1) | curses.A_BOLD)
 
         # Draw the thicker border
-        border_top_y = len(ascii_title_lines)   # Adjust starting Y for border
+        border_top_y = len(ascii_title_lines) + 1  # Adjusted to decrease space
 
         # Horizontal borders (thicker)
         for x in range(2, width - 2):  # Top and bottom horizontal border
