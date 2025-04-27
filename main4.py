@@ -20,9 +20,6 @@ def save_quotes(quotes):
     with open(QUOTES_FILE, 'w') as f:
         json.dump(quotes, f, indent=2)
 
-def play_beep():
-    curses.beep()
-
 def add_quote(stdscr, quotes):
     curses.echo()
     curses.curs_set(1)  # Show blinking cursor
@@ -37,7 +34,6 @@ def add_quote(stdscr, quotes):
     stdscr.addstr(height // 2 - 4, name_x_center, prompt_name, curses.A_BOLD)
     stdscr.refresh()
     name = stdscr.getstr(height // 2 - 2, name_x_center, 100).decode('utf-8').strip()
-    play_beep()  # Beep after name is entered
 
     stdscr.clear()
 
@@ -47,7 +43,6 @@ def add_quote(stdscr, quotes):
     stdscr.addstr(height // 2 - 4, quote_x_center, prompt_quote, curses.A_BOLD)
     stdscr.refresh()
     quote_text = stdscr.getstr(height // 2 - 2, quote_x_center, 100).decode('utf-8').strip()
-    play_beep()  # Beep after quote is entered
 
     curses.noecho()
     curses.curs_set(0)  # Hide cursor again
@@ -76,7 +71,7 @@ def main(stdscr):
 
     curses.start_color()
     curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Main text
-    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)  # Menu
+    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_GREEN)  # Menu
     curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Border
 
     quotes = load_quotes()
@@ -100,7 +95,7 @@ def main(stdscr):
             stdscr.addstr(i, (width // 2) - (len(line) // 2), line, curses.color_pair(1) | curses.A_BOLD)
 
         # Draw the thicker border
-        border_top_y = len(ascii_title_lines)   # Adjust starting Y for border
+        border_top_y = len(ascii_title_lines) + 2  # Adjust starting Y for border
 
         # Horizontal borders (thicker)
         for x in range(2, width - 2):  # Top and bottom horizontal border
@@ -164,7 +159,6 @@ def main(stdscr):
             if key in (ord('q'), ord('Q')):
                 return
             elif key in (ord('a'), ord('A')):
-                play_beep() # Beep after 'A' is pressed
                 newly_added_quote = add_quote(stdscr, quotes)
                 if newly_added_quote:
                     current_quote = newly_added_quote
