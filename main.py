@@ -76,34 +76,37 @@ def main(stdscr):
     stdscr.timeout(100)  # Non-blocking getch
 
     curses.start_color()
-    curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Main text
-    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_GREEN)  # Menu
+    curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)  # Main text
+    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)  # Menu
     curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Border
 
     quotes = load_quotes()
     if not quotes:
-        quotes = [{"name": "System", "quote": "Welcome to the Retro Terminal!"}]
+        quotes = [{"name": "System", "quote": "Welcome to the Retro Wall!"}]
 
-    ascii_title = pyfiglet.figlet_format("slm chtri?")
+    ascii_title = pyfiglet.figlet_format("Retro Wall", font="small")  # Using the "small" font
     ascii_title_lines = ascii_title.splitlines()
 
     displayed_indices = []
     current_quote = None
 
+    vertical_space_before_title = 2  # Number of empty lines before the title
+
     while True:
         stdscr.clear()
         height, width = stdscr.getmaxyx()
 
-        # Draw ASCII Title (before the border)
+        # Draw ASCII Title (with added space)
         for i, line in enumerate(ascii_title_lines):
-            if i >= height - 4:  # Leave space for border
+            title_y = i + vertical_space_before_title
+            if title_y >= height - 4:  # Leave space for border
                 break
-            stdscr.addstr(i, (width // 2) - (len(line) // 2), line, curses.color_pair(1) | curses.A_BOLD)
+            stdscr.addstr(title_y, (width // 2) - (len(line) // 2), line, curses.color_pair(1) | curses.A_BOLD)
+
+        # Calculate border position based on the new title position
+        border_top_y = len(ascii_title_lines) + vertical_space_before_title + 1  # Adjusted for space
 
         # Draw the thicker border
-        border_top_y = len(ascii_title_lines) + 1  # Adjusted to decrease space
-
-        # Horizontal borders (thicker)
         for x in range(2, width - 2):  # Top and bottom horizontal border
             stdscr.addch(border_top_y, x, curses.ACS_HLINE, curses.color_pair(3))  # Top border
             stdscr.addch(height - 3, x, curses.ACS_HLINE, curses.color_pair(3))  # Bottom border
