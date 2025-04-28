@@ -5,30 +5,30 @@ import time
 import pyfiglet
 import random
 
-QUOTES_FILE = "quotes.json"
+APPROVED_QUOTES_FILE = "approved_quotes.json"
+PENDING_QUOTES_FILE = "pending_quotes.json"
 
-def load_quotes():
-    if os.path.exists(QUOTES_FILE):
-        with open(QUOTES_FILE, 'r') as f:
+def load_quotes(file):
+    if os.path.exists(file):
+        with open(file, 'r') as f:
             content = f.read().strip()
             if not content:
                 return []
             return json.loads(content)
     return []
 
-def save_quotes(quotes):
-    with open(QUOTES_FILE, 'w') as f:
+def save_quotes(quotes, file):
+    with open(file, 'w') as f:
         json.dump(quotes, f, indent=2)
 
-def add_quote(stdscr, quotes):
+def add_quote(stdscr, approved_quotes, pending_quotes):
     curses.echo()
-    curses.curs_set(1)  # Show blinking cursor
-    stdscr.timeout(-1)  # Wait indefinitely for input
+    curses.curs_set(1)
+    stdscr.timeout(-1)
 
     stdscr.clear()
     height, width = stdscr.getmaxyx()
 
-    # Center the prompt for the name input
     prompt_name = "Enter the name of the person:"
     name_x_center = (width // 2) - (len(prompt_name) // 2)
     stdscr.addstr(height // 2 - 4, name_x_center, prompt_name, curses.A_BOLD)
@@ -37,7 +37,6 @@ def add_quote(stdscr, quotes):
 
     stdscr.clear()
 
-    # Center the prompt for the quote input
     prompt_quote = "Type the quote:"
     quote_x_center = (width // 2) - (len(prompt_quote) // 2)
     stdscr.addstr(height // 2 - 4, quote_x_center, prompt_quote, curses.A_BOLD)
@@ -45,14 +44,14 @@ def add_quote(stdscr, quotes):
     quote_text = stdscr.getstr(height // 2 - 2, quote_x_center, 100).decode('utf-8').strip()
 
     curses.noecho()
-    curses.curs_set(0)  # Hide cursor again
-    stdscr.timeout(100)  # Return to non-blocking mode
+    curses.curs_set(0)
+    stdscr.timeout(100)
 
     if name and quote_text:
         new_quote = {"name": name, "quote": quote_text}
-        quotes.append(new_quote)
-        save_quotes(quotes)
-        return new_quote  # Return the newly added quote
+        pending_quotes.append(new_quote)
+        save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+        return new_quote
     return None
 
 def typewriter_effect(stdscr, y, text, color_pair, center_x):
@@ -62,21 +61,64 @@ def typewriter_effect(stdscr, y, text, color_pair, center_x):
         time.sleep(0.03)
 
 def draw_menu(stdscr, width, height):
-    footer = "[A] ADD QUOTE    [Q] QUIT"
+    footer = "[A] ADD QUOTE    [Ctrl+P] ADMIN    [Q] QUIT"
     stdscr.addstr(height-2, (width // 2) - (len(footer) // 2), footer, curses.color_pair(2) | curses.A_BOLD)
 
+def admin_menu(stdscr, pending_quotes, approved_quotes):
+    idx = 0
+    while True:
+        stdscr.clear()
+        height, width = stdscr.getmaxyx()
+
+        title = "ADMIN PANEL - PENDING QUOTES"
+        stdscr.addstr(1, (width // 2) - (len(title) // 2), title, curses.color_pair(1) | curses.A_BOLD)
+
+        if not pending_quotes:
+            stdscr.addstr(height // 2, (width // 2) - 10, "No pending quotes!", curses.color_pair(1))
+            stdscr.refresh()
+            stdscr.getch()
+            return
+
+        for i, quote in enumerate(pending_quotes):
+            marker = "-> " if i == idx else "   "
+            text = f"{marker}{quote['quote']} - {quote['name']}"
+            stdscr.addstr(3 + i, 4, text[:width-8], curses.color_pair(1))
+
+        stdscr.refresh()
+        key = stdscr.getch()
+
+        if key == curses.KEY_UP:
+            idx = (idx - 1) % len(pending_quotes)
+        elif key == curses.KEY_DOWN:
+            idx = (idx + 1) % len(pending_quotes)
+        elif key == 10:  # Enter
+            approved_quotes.append(pending_quotes.pop(idx))
+            save_quotes(approved_quotes, APPROVED_QUOTES_FILE)
+            save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+            if idx >= len(pending_quotes):
+                idx = max(0, len(pending_quotes) - 1)
+        elif key in (curses.KEY_DC, curses.KEY_BACKSPACE, 127):  # Delete
+            pending_quotes.pop(idx)
+            save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+            if idx >= len(pending_quotes):
+                idx = max(0, len(pending_quotes) - 1)
+        elif key in (27, ord('q'), ord('Q')):  # ESC or q to quit admin
+            return
+
 def main(stdscr):
-    curses.curs_set(0)  # Hide cursor
-    stdscr.timeout(100)  # Non-blocking getch
+    curses.curs_set(0)
+    stdscr.timeout(100)
 
     curses.start_color()
-    curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Main text
-    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_GREEN)  # Menu
-    curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Border
+    curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_GREEN)
+    curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)
 
-    quotes = load_quotes()
-    if not quotes:
-        quotes = [{"name": "System", "quote": "Welcome to the Retro Terminal!"}]
+    approved_quotes = load_quotes(APPROVED_QUOTES_FILE)
+    pending_quotes = load_quotes(PENDING_QUOTES_FILE)
+
+    if not approved_quotes:
+        approved_quotes = [{"name": "System", "quote": "Welcome to the Retro Terminal!"}]
 
     ascii_title = pyfiglet.figlet_format("Retro Terminal")
     ascii_title_lines = ascii_title.splitlines()
@@ -88,48 +130,41 @@ def main(stdscr):
         stdscr.clear()
         height, width = stdscr.getmaxyx()
 
-        # Draw ASCII Title (before the border)
         for i, line in enumerate(ascii_title_lines):
-            if i >= height - 4:  # Leave space for border
+            if i >= height - 4:
                 break
             stdscr.addstr(i, (width // 2) - (len(line) // 2), line, curses.color_pair(1) | curses.A_BOLD)
 
-        # Draw the thicker border
-        border_top_y = len(ascii_title_lines) + 2  # Adjust starting Y for border
+        border_top_y = len(ascii_title_lines) + 2
 
-        # Horizontal borders (thicker)
-        for x in range(2, width - 2):  # Top and bottom horizontal border
-            stdscr.addch(border_top_y, x, curses.ACS_HLINE, curses.color_pair(3))  # Top border
-            stdscr.addch(height - 3, x, curses.ACS_HLINE, curses.color_pair(3))  # Bottom border
+        for x in range(2, width - 2):
+            stdscr.addch(border_top_y, x, curses.ACS_HLINE, curses.color_pair(3))
+            stdscr.addch(height - 3, x, curses.ACS_HLINE, curses.color_pair(3))
 
-        # Vertical borders (thicker)
-        for y in range(border_top_y, height - 3):  # Left and right vertical borders
-            stdscr.addch(y, 2, curses.ACS_VLINE, curses.color_pair(3))  # Left border
-            stdscr.addch(y, width - 3, curses.ACS_VLINE, curses.color_pair(3))  # Right border
+        for y in range(border_top_y, height - 3):
+            stdscr.addch(y, 2, curses.ACS_VLINE, curses.color_pair(3))
+            stdscr.addch(y, width - 3, curses.ACS_VLINE, curses.color_pair(3))
 
-        # Corners (to complete the thick border)
         stdscr.addch(border_top_y, 2, curses.ACS_ULCORNER, curses.color_pair(3))
         stdscr.addch(border_top_y, width-3, curses.ACS_URCORNER, curses.color_pair(3))
         stdscr.addch(height-3, 2, curses.ACS_LLCORNER, curses.color_pair(3))
         stdscr.addch(height-3, width-3, curses.ACS_LRCORNER, curses.color_pair(3))
 
-        # Draw Menu (always visible)
         draw_menu(stdscr, width, height)
 
-        if not quotes:
-            current_quote = {"name": "System", "quote": "No quotes available. Add some!"}
+        if not approved_quotes:
+            current_quote = {"name": "System", "quote": "No approved quotes available!"}
         elif current_quote is None:
-            available_indices = [i for i in range(len(quotes)) if i not in displayed_indices]
+            available_indices = [i for i in range(len(approved_quotes)) if i not in displayed_indices]
             if not available_indices:
                 displayed_indices = []
-                available_indices = list(range(len(quotes)))
+                available_indices = list(range(len(approved_quotes)))
             if available_indices:
                 chosen_index = random.choice(available_indices)
-                current_quote = quotes[chosen_index]
+                current_quote = approved_quotes[chosen_index]
                 displayed_indices.append(chosen_index)
 
         if current_quote:
-            # Centering the content vertically between the ASCII art and the border
             ascii_end_y = border_top_y
             menu_start_y = height - 3
             available_space = menu_start_y - ascii_end_y
@@ -138,20 +173,15 @@ def main(stdscr):
             quote_y = center_y - 1
             name_y = center_y + 1
 
-            # Center X positions
             quote_x_center = (width // 2) - (len(current_quote["quote"]) // 2)
             name_line = f"- {current_quote['name']} -"
             name_x_center = (width // 2) - (len(name_line) // 2)
 
-            # Typing effect for quote
             typewriter_effect(stdscr, quote_y, current_quote["quote"], curses.color_pair(1), quote_x_center)
-
-            # After typing, draw name normally
             stdscr.addstr(name_y, name_x_center, name_line, curses.color_pair(1) | curses.A_BOLD)
 
         stdscr.refresh()
 
-        # Wait 5 seconds while listening for keys
         start_time = time.time()
         newly_added_quote = None
         while time.time() - start_time < 5:
@@ -159,14 +189,17 @@ def main(stdscr):
             if key in (ord('q'), ord('Q')):
                 return
             elif key in (ord('a'), ord('A')):
-                newly_added_quote = add_quote(stdscr, quotes)
+                newly_added_quote = add_quote(stdscr, approved_quotes, pending_quotes)
                 if newly_added_quote:
                     current_quote = newly_added_quote
-                    displayed_indices = [] # Reset displayed indices to show the new quote immediately
-                break  # After adding, break to redraw everything fresh
+                break
+            elif key == 16:  # Ctrl+P = 16 (ascii code)
+                admin_menu(stdscr, pending_quotes, approved_quotes)
+                current_quote = None
+                break
             time.sleep(0.1)
 
         if newly_added_quote is None:
-            current_quote = None # Reset current_quote to trigger the next random selection
+            current_quote = None
 
 curses.wrapper(main)
