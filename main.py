@@ -6,8 +6,6 @@ import pyfiglet
 import random
 
 QUOTES_FILE = "quotes.json"
-UNAPPROVED_FILE = "unapproved_quotes.json"
-REMOVED_FILE = "removed_quotes.json"
 
 def load_quotes():
     if os.path.exists(QUOTES_FILE):
@@ -18,41 +16,15 @@ def load_quotes():
             return json.loads(content)
     return []
 
-def load_unapproved_quotes():
-    if os.path.exists(UNAPPROVED_FILE):
-        with open(UNAPPROVED_FILE, 'r') as f:
-            content = f.read().strip()
-            if not content:
-                return []
-            return json.loads(content)
-    return []
-
-def load_removed_quotes():
-    if os.path.exists(REMOVED_FILE):
-        with open(REMOVED_FILE, 'r') as f:
-            content = f.read().strip()
-            if not content:
-                return []
-            return json.loads(content)
-    return []
-
 def save_quotes(quotes):
     with open(QUOTES_FILE, 'w') as f:
         json.dump(quotes, f, indent=2)
 
-def save_unapproved_quotes(quotes):
-    with open(UNAPPROVED_FILE, 'w') as f:
-        json.dump(quotes, f, indent=2)
-
-def save_removed_quotes(quotes):
-    with open(REMOVED_FILE, 'w') as f:
-        json.dump(quotes, f, indent=2)
-
 def play_beep():
     sound_file = "/home/mojtaba/cursrs-test/beep.wav"  # Replace with the actual path to your sound file
-    os.system(f"aplay -q {sound_file} &")  # -q for quiet, & to run in background
+    os.system(f"aplay -q {sound_file} &") # -q for quiet, & to run in background
 
-def add_quote(stdscr, unapproved_quotes):
+def add_quote(stdscr, quotes):
     curses.echo()
     curses.curs_set(1)  # Show blinking cursor
     stdscr.timeout(-1)  # Wait indefinitely for input
@@ -83,48 +55,11 @@ def add_quote(stdscr, unapproved_quotes):
     stdscr.timeout(100)  # Return to non-blocking mode
 
     if name and quote_text:
-        new_quote = {"name": name, "quote": quote_text, "approved": False}
-        unapproved_quotes.append(new_quote)
-        save_unapproved_quotes(unapproved_quotes)
+        new_quote = {"name": name, "quote": quote_text}
+        quotes.append(new_quote)
+        save_quotes(quotes)
         return new_quote  # Return the newly added quote
     return None
-
-def admin_menu(stdscr, unapproved_quotes, removed_quotes):
-    curses.curs_set(0)  # Hide cursor
-    stdscr.timeout(100)  # Non-blocking getch
-
-    stdscr.clear()
-    height, width = stdscr.getmaxyx()
-
-    stdscr.addstr(2, (width // 2) - 7, "Admin Panel", curses.A_BOLD)
-    stdscr.addstr(4, 2, "Unapproved Quotes:", curses.A_BOLD)
-
-    # Display unapproved quotes
-    if unapproved_quotes:
-        for idx, quote in enumerate(unapproved_quotes):
-            stdscr.addstr(6 + idx, 2, f"{idx + 1}. {quote['name']}: {quote['quote']}", curses.color_pair(1))
-
-    stdscr.addstr(height - 3, (width // 2) - 15, "Press ENTER to approve or D to delete", curses.A_BOLD)
-    stdscr.refresh()
-
-    key = stdscr.getch()
-    if key == 10:  # ENTER key
-        # Select quote to approve
-        quote_index = len(unapproved_quotes) - 1
-        selected_quote = unapproved_quotes.pop(quote_index)
-        selected_quote["approved"] = True
-        # Add to approved quotes
-        quotes = load_quotes()
-        quotes.append(selected_quote)
-        save_quotes(quotes)
-        save_unapproved_quotes(unapproved_quotes)
-    elif key == ord('d'):  # D key for delete
-        # Select quote to delete
-        quote_index = len(unapproved_quotes) - 1
-        selected_quote = unapproved_quotes.pop(quote_index)
-        removed_quotes.append(selected_quote)
-        save_removed_quotes(removed_quotes)
-        save_unapproved_quotes(unapproved_quotes)
 
 def typewriter_effect(stdscr, y, text, color_pair, center_x):
     for i, ch in enumerate(text):
@@ -151,9 +86,6 @@ def main(stdscr):
     curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Border
 
     quotes = load_quotes()
-    unapproved_quotes = load_unapproved_quotes()
-    removed_quotes = load_removed_quotes()
-
     if not quotes:
         quotes = [{"name": "System", "quote": "Welcome to the Retro Wall!"}]
 
@@ -233,19 +165,21 @@ def main(stdscr):
 
         stdscr.refresh()
 
-        # Wait for user key input to add quote or show admin menu
+        # Wait 5 seconds while listening for keys
         start_time = time.time()
+        newly_added_quote = None
         while time.time() - start_time < 5:
             key = stdscr.getch()
-            if key != curses.ERR:  # Check if a key was pressed
+            if key != curses.ERR: # Check if a key was pressed
                 play_beep()
-                if key == 17:  # Ctrl + P
-                    admin_menu(stdscr, unapproved_quotes, removed_quotes)
-                else:
-                    newly_added_quote = add_quote(stdscr, unapproved_quotes)
-                    if newly_added_quote:
-                        current_quote = newly_added_quote
-                        displayed_indices = []
+                newly_added_quote = add_quote(stdscr, quotes)
+                if newly_added_quote:
+                    current_quote = newly_added_quote
+                    displayed_indices = []
                 break
+            time.sleep(0.1)
+
+        if newly_added_quote is None:
+            current_quote = None
 
 curses.wrapper(main)
