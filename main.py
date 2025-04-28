@@ -68,8 +68,13 @@ def typewriter_effect(stdscr, y, text, color_pair, center_x):
         time.sleep(0.03)
 
 def draw_menu(stdscr, width, height):
-    footer = "[A] ADD QUOTE    [Q] QUIT"
-    stdscr.addstr(height-2, (width // 2) - (len(footer) // 2), footer, curses.color_pair(2) | curses.A_BOLD)
+    footer = "Press any key to add a quote"
+    # Make "Press any key..." blink.
+    blink_attr = curses.color_pair(2) | curses.A_BOLD | curses.A_BLINK
+    stdscr.addstr(height - 3, (width // 2) - (len(footer) // 2), footer, blink_attr)
+    # Add copyright notice
+    copyright_text = "© Retro Mowz"
+    stdscr.addstr(height - 1, (width // 2) - (len(copyright_text) // 2), copyright_text, curses.color_pair(1))
 
 def main(stdscr):
     curses.curs_set(0)  # Hide cursor
@@ -109,7 +114,7 @@ def main(stdscr):
         # Draw the thicker border
         for x in range(2, width - 2):  # Top and bottom horizontal border
             stdscr.addch(border_top_y, x, curses.ACS_HLINE, curses.color_pair(3))  # Top border
-            stdscr.addch(height - 3, x, curses.ACS_HLINE, curses.color_pair(3))  # Bottom border
+            stdscr.addch(height - 4, x, curses.ACS_HLINE, curses.color_pair(3))  # Bottom border
 
         # Vertical borders (thicker)
         for y in range(border_top_y, height - 3):  # Left and right vertical borders
@@ -119,8 +124,8 @@ def main(stdscr):
         # Corners (to complete the thick border)
         stdscr.addch(border_top_y, 2, curses.ACS_ULCORNER, curses.color_pair(3))
         stdscr.addch(border_top_y, width-3, curses.ACS_URCORNER, curses.color_pair(3))
-        stdscr.addch(height-3, 2, curses.ACS_LLCORNER, curses.color_pair(3))
-        stdscr.addch(height-3, width-3, curses.ACS_LRCORNER, curses.color_pair(3))
+        stdscr.addch(height-4, 2, curses.ACS_LLCORNER, curses.color_pair(3))
+        stdscr.addch(height-4, width-3, curses.ACS_LRCORNER, curses.color_pair(3))
 
         # Draw Menu (always visible)
         draw_menu(stdscr, width, height)
@@ -165,18 +170,16 @@ def main(stdscr):
         newly_added_quote = None
         while time.time() - start_time < 5:
             key = stdscr.getch()
-            if key in (ord('q'), ord('Q')):
-                return
-            elif key in (ord('a'), ord('A')):
-                play_beep() # Beep after 'A' is pressed
+            if key != curses.ERR: # Check if a key was pressed
+                play_beep()
                 newly_added_quote = add_quote(stdscr, quotes)
                 if newly_added_quote:
                     current_quote = newly_added_quote
-                    displayed_indices = [] # Reset displayed indices to show the new quote immediately
-                break  # After adding, break to redraw everything fresh
+                    displayed_indices = []
+                break
             time.sleep(0.1)
 
         if newly_added_quote is None:
-            current_quote = None # Reset current_quote to trigger the next random selection
+            current_quote = None
 
 curses.wrapper(main)
