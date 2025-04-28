@@ -6,25 +6,27 @@ import pyfiglet
 import random
 
 QUOTES_FILE = "quotes.json"
+PENDING_QUOTES_FILE = "pending_quotes.json"
+REMOVED_QUOTES_FILE = "removed_quotes.json"
 
-def load_quotes():
-    if os.path.exists(QUOTES_FILE):
-        with open(QUOTES_FILE, 'r') as f:
+def load_quotes(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
             content = f.read().strip()
             if not content:
                 return []
             return json.loads(content)
     return []
 
-def save_quotes(quotes):
-    with open(QUOTES_FILE, 'w') as f:
+def save_quotes(quotes, file_path):
+    with open(file_path, 'w') as f:
         json.dump(quotes, f, indent=2)
 
 def play_beep():
     sound_file = "/home/mojtaba/cursrs-test/beep.wav"  # Replace with the actual path to your sound file
     os.system(f"aplay -q {sound_file} &") # -q for quiet, & to run in background
 
-def add_quote(stdscr, quotes):
+def add_quote(stdscr, pending_quotes):
     curses.echo()
     curses.curs_set(1)  # Show blinking cursor
     stdscr.timeout(-1)  # Wait indefinitely for input
@@ -56,10 +58,106 @@ def add_quote(stdscr, quotes):
 
     if name and quote_text:
         new_quote = {"name": name, "quote": quote_text}
-        quotes.append(new_quote)
-        save_quotes(quotes)
+        pending_quotes.append(new_quote)
+        save_quotes(pending_quotes, PENDING_QUOTES_FILE)
         return new_quote  # Return the newly added quote
     return None
+
+def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
+    curses.curs_set(0)  # Hide cursor
+    stdscr.timeout(100)  # Non-blocking mode
+    
+    current_index = 0
+    
+    while True:
+        stdscr.clear()
+        height, width = stdscr.getmaxyx()
+        
+        # Draw title
+        title = "ADMIN PANEL - PENDING QUOTES"
+        stdscr.addstr(1, (width // 2) - (len(title) // 2), title, curses.A_BOLD | curses.color_pair(4))
+        
+        # Draw instructions
+        instructions = "UP/DOWN: Navigate | ENTER: Approve | DELETE/BACKSPACE: Reject | ESC: Exit"
+        stdscr.addstr(height - 2, (width // 2) - (len(instructions) // 2), instructions, curses.color_pair(1))
+        
+        # Show pending quotes count
+        count_text = f"Pending Quotes: {len(pending_quotes)}"
+        stdscr.addstr(3, (width // 2) - (len(count_text) // 2), count_text, curses.color_pair(1))
+        
+        # No pending quotes
+        if not pending_quotes:
+            no_quotes_msg = "No pending quotes available"
+            stdscr.addstr(height // 2, (width // 2) - (len(no_quotes_msg) // 2), no_quotes_msg, curses.color_pair(1))
+        else:
+            # Display current quote
+            quote = pending_quotes[current_index]
+            
+            # Draw quote in a box
+            box_width = min(width - 10, max(len(quote["quote"]), len(quote["name"])) + 10)
+            box_start_x = (width // 2) - (box_width // 2)
+            box_start_y = height // 2 - 4
+            
+            # Draw border
+            for i in range(box_width):
+                stdscr.addch(box_start_y, box_start_x + i, curses.ACS_HLINE, curses.color_pair(3))
+                stdscr.addch(box_start_y + 6, box_start_x + i, curses.ACS_HLINE, curses.color_pair(3))
+            
+            for i in range(7):
+                stdscr.addch(box_start_y + i, box_start_x, curses.ACS_VLINE, curses.color_pair(3))
+                stdscr.addch(box_start_y + i, box_start_x + box_width - 1, curses.ACS_VLINE, curses.color_pair(3))
+            
+            # Corners
+            stdscr.addch(box_start_y, box_start_x, curses.ACS_ULCORNER, curses.color_pair(3))
+            stdscr.addch(box_start_y, box_start_x + box_width - 1, curses.ACS_URCORNER, curses.color_pair(3))
+            stdscr.addch(box_start_y + 6, box_start_x, curses.ACS_LLCORNER, curses.color_pair(3))
+            stdscr.addch(box_start_y + 6, box_start_x + box_width - 1, curses.ACS_LRCORNER, curses.color_pair(3))
+            
+            # Quote content
+            quote_str = quote["quote"]
+            if len(quote_str) > box_width - 6:
+                quote_str = quote_str[:box_width - 9] + "..."
+            
+            name_str = f"- {quote['name']} -"
+            
+            # Display quote and name
+            stdscr.addstr(box_start_y + 2, (width // 2) - (len(quote_str) // 2), quote_str, curses.color_pair(1))
+            stdscr.addstr(box_start_y + 4, (width // 2) - (len(name_str) // 2), name_str, curses.color_pair(1))
+            
+            # Show navigation indicator
+            if len(pending_quotes) > 1:
+                nav_text = f"Quote {current_index + 1} of {len(pending_quotes)}"
+                stdscr.addstr(box_start_y + 8, (width // 2) - (len(nav_text) // 2), nav_text, curses.color_pair(1))
+        
+        stdscr.refresh()
+        
+        # Process keyboard input
+        key = stdscr.getch()
+        
+        if key == 27:  # ESC key
+            break
+        elif key == curses.KEY_UP and pending_quotes:
+            current_index = (current_index - 1) % len(pending_quotes)
+            play_beep()
+        elif key == curses.KEY_DOWN and pending_quotes:
+            current_index = (current_index + 1) % len(pending_quotes)
+            play_beep()
+        elif key == 10 and pending_quotes:  # ENTER key
+            # Approve quote - move to approved quotes
+            approved_quotes.append(pending_quotes.pop(current_index))
+            save_quotes(approved_quotes, QUOTES_FILE)
+            save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+            play_beep()
+            if current_index >= len(pending_quotes) and current_index > 0:
+                current_index = len(pending_quotes) - 1
+        elif (key == curses.KEY_DC or key == 127 or key == 8) and pending_quotes:  # DELETE or BACKSPACE key
+            # Reject quote - move to removed quotes
+            removed_quotes.append(pending_quotes.pop(current_index))
+            save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
+            save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+            play_beep()
+            if current_index >= len(pending_quotes) and current_index > 0:
+                current_index = len(pending_quotes) - 1
 
 def typewriter_effect(stdscr, y, text, color_pair, center_x):
     for i, ch in enumerate(text):
@@ -84,8 +182,16 @@ def main(stdscr):
     curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)  # Main text
     curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)  # Menu
     curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Border
+    curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)    # Admin panel title
 
-    quotes = load_quotes()
+    # Initialize key detection
+    stdscr.keypad(True)  # Enable keypad mode for arrow keys
+
+    # Load all quote types
+    quotes = load_quotes(QUOTES_FILE)
+    pending_quotes = load_quotes(PENDING_QUOTES_FILE)
+    removed_quotes = load_quotes(REMOVED_QUOTES_FILE)
+    
     if not quotes:
         quotes = [{"name": "System", "quote": "Welcome to the Retro Wall!"}]
 
@@ -170,16 +276,34 @@ def main(stdscr):
         newly_added_quote = None
         while time.time() - start_time < 5:
             key = stdscr.getch()
-            if key != curses.ERR: # Check if a key was pressed
+            if key == 16:  # CTRL+P (ASCII 16 is DLE, which is what CTRL+P sends)
                 play_beep()
-                newly_added_quote = add_quote(stdscr, quotes)
+                admin_panel(stdscr, pending_quotes, quotes, removed_quotes)
+                current_quote = None  # Reset to show a random quote after admin panel
+                break
+            elif key != curses.ERR:  # Check if any other key was pressed
+                play_beep()
+                newly_added_quote = add_quote(stdscr, pending_quotes)
                 if newly_added_quote:
                     current_quote = newly_added_quote
                     displayed_indices = []
                 break
             time.sleep(0.1)
 
-        if newly_added_quote is None:
+        if newly_added_quote is None and key != 16:  # Only reset if we didn't open the admin panel
             current_quote = None
+
+# Ensure all required files exist
+if not os.path.exists(QUOTES_FILE):
+    with open(QUOTES_FILE, 'w') as f:
+        json.dump([], f)
+
+if not os.path.exists(PENDING_QUOTES_FILE):
+    with open(PENDING_QUOTES_FILE, 'w') as f:
+        json.dump([], f)
+
+if not os.path.exists(REMOVED_QUOTES_FILE):
+    with open(REMOVED_QUOTES_FILE, 'w') as f:
+        json.dump([], f)
 
 curses.wrapper(main)
