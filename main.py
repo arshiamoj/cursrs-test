@@ -77,10 +77,6 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
         title = "ADMIN PANEL - PENDING QUOTES"
         stdscr.addstr(1, (width // 2) - (len(title) // 2), title, curses.A_BOLD | curses.color_pair(4))
         
-        # Draw instructions
-        instructions = "UP/DOWN: Navigate | ENTER: Approve | DELETE/BACKSPACE: Reject | ESC: Exit"
-        stdscr.addstr(height - 2, (width // 2) - (len(instructions) // 2), instructions, curses.color_pair(1))
-        
         # Show pending quotes count
         count_text = f"Pending Quotes: {len(pending_quotes)}"
         stdscr.addstr(3, (width // 2) - (len(count_text) // 2), count_text, curses.color_pair(1))
