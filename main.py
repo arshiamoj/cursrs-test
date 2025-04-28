@@ -44,12 +44,12 @@ def add_quote(stdscr, pending_quotes):
 
     stdscr.clear()
 
-    # Center the prompt for the quote input
+    # Center the prompt for the quote input with character limit message
     prompt_quote = "Say something:"
     quote_x_center = (width // 2) - (len(prompt_quote) // 2)
     stdscr.addstr(height // 2 - 4, quote_x_center, prompt_quote, curses.A_BOLD)
     stdscr.refresh()
-    quote_text = stdscr.getstr(height // 2 - 2, quote_x_center, 100).decode('utf-8').strip()
+    quote_text = stdscr.getstr(height // 2 - 2, quote_x_center, 32).decode('utf-8').strip()  # Limit to 32 characters
     play_beep()  # Beep after quote is entered
 
     curses.noecho()
