@@ -69,11 +69,8 @@ def typewriter_effect(stdscr, y, text, color_pair, center_x):
 
 def draw_menu(stdscr, width, height):
     footer = "Press any key to add a quote"
-    # Check if the terminal supports blinking
-    if curses.tigetstr("blink") is not None:
-        blink_attr = curses.color_pair(2) | curses.A_BOLD | curses.A_BLINK
-    else:
-        blink_attr = curses.color_pair(2) | curses.A_BOLD  # Fallback to non-blinking
+    # Make "Press any key..." bold, no blink.
+    blink_attr = curses.color_pair(2) | curses.A_BOLD
     stdscr.addstr(height - 3, (width // 2) - (len(footer) // 2), footer, blink_attr)
     # Add copyright notice
     copyright_text = "© Retro Mowz"
