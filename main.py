@@ -38,6 +38,38 @@ def save_quotes(quotes, file_path):
     with open(file_path, 'w') as f:
         json.dump(quotes, f, indent=2)
 
+def play_success_jingle():
+    """Play a C major jingle when a quote is successfully added"""
+    if HAS_BUZZER:
+        # C Major mini jingle: C → E → G → C5
+        notes = [261, 329, 392, 523]  # C4, E4, G4, C5
+        
+        for note in notes:
+            # Play each note
+            buzzer.frequency = note
+            buzzer.value = 0.3
+            time.sleep(0.15)
+            buzzer.value = 0
+            time.sleep(0.03)
+    else:
+        # Use system beep on other platforms
+        if platform.system() == "Darwin":  # MacOS
+            # Use afplay (built-in on MacOS) or print character bell
+            subprocess.run(["osascript", "-e", "beep"])
+        elif platform.system() == "Windows":
+            # Windows - use winsound if available
+            try:
+                import winsound
+                for freq in [261, 329, 392, 523]:  # C4, E4, G4, C5
+                    winsound.Beep(freq, 150)  # Each note for 150ms
+                    time.sleep(0.03)
+            except ImportError:
+                # Fallback to ASCII bell
+                print("\a", end="", flush=True)
+        else:
+            # Linux/Unix without GPIO - use ASCII bell
+            print("\a", end="", flush=True)
+
 def play_beep():
     """Play a beep sound using either GPIO buzzer or system beep"""
     if HAS_BUZZER:
@@ -87,8 +119,7 @@ def add_quote(stdscr, pending_quotes):
     stdscr.addstr(height // 2 - 4, quote_x_center, prompt_quote, curses.A_BOLD)
     stdscr.refresh()
     quote_text = stdscr.getstr(height // 2 - 2, quote_x_center, 32).decode('utf-8').strip()  # Limit to 32 characters
-    play_beep()  # Beep after quote is entered
-
+    
     curses.noecho()
     curses.curs_set(0)  # Hide cursor again
     stdscr.timeout(100)  # Return to non-blocking mode
@@ -97,6 +128,7 @@ def add_quote(stdscr, pending_quotes):
         new_quote = {"name": name, "quote": quote_text}
         pending_quotes.append(new_quote)
         save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+        play_success_jingle()  # Play success jingle after quote is added
         return new_quote  # Return the newly added quote
     return None
 
@@ -171,16 +203,16 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
             break
         elif key == curses.KEY_UP and pending_quotes:
             current_index = (current_index - 1) % len(pending_quotes)
-            play_beep()
+            # Removed beep for admin panel navigation
         elif key == curses.KEY_DOWN and pending_quotes:
             current_index = (current_index + 1) % len(pending_quotes)
-            play_beep()
+            # Removed beep for admin panel navigation
         elif key == 10 and pending_quotes:  # ENTER key
             # Approve quote - move to approved quotes
             approved_quotes.append(pending_quotes.pop(current_index))
             save_quotes(approved_quotes, QUOTES_FILE)
             save_quotes(pending_quotes, PENDING_QUOTES_FILE)
-            play_beep()
+            # Removed beep for quote approval
             if current_index >= len(pending_quotes) and current_index > 0:
                 current_index = len(pending_quotes) - 1
         elif (key == curses.KEY_DC or key == 127 or key == 8) and pending_quotes:  # DELETE or BACKSPACE key
@@ -188,7 +220,7 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
             removed_quotes.append(pending_quotes.pop(current_index))
             save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
             save_quotes(pending_quotes, PENDING_QUOTES_FILE)
-            play_beep()
+            # Removed beep for quote rejection
             if current_index >= len(pending_quotes) and current_index > 0:
                 current_index = len(pending_quotes) - 1
 
@@ -310,7 +342,7 @@ def main(stdscr):
         while time.time() - start_time < 5:
             key = stdscr.getch()
             if key == 16:  # CTRL+P (ASCII 16 is DLE, which is what CTRL+P sends)
-                play_beep()
+                # No beep when entering admin panel
                 admin_panel(stdscr, pending_quotes, quotes, removed_quotes)
                 current_quote = None  # Reset to show a random quote after admin panel
                 break
