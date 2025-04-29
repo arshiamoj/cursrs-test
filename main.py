@@ -103,46 +103,111 @@ def add_quote(stdscr, pending_quotes):
     height, width = stdscr.getmaxyx()
 
     # Center the prompt for the name input
-    prompt_name = "What's your name? (20 char max)"
-    waiting_message = "Please wait..."
+    prompt_name = "What's your name?"
     name_x_center = (width // 2) - (len(prompt_name) // 2)
-    waiting_x_center = (width // 2) - (len(waiting_message) // 2)
+    input_x = name_x_center  # Position where input will start
     
-    # Show waiting message and delay for 1.5 seconds
+    # Show name prompt
     stdscr.addstr(height // 2 - 4, name_x_center, prompt_name, curses.A_BOLD)
-    stdscr.addstr(height // 2 - 2, waiting_x_center, waiting_message, curses.color_pair(1))
+    
+    # Create empty input line and position cursor properly
+    stdscr.move(height // 2 - 2, input_x)
     stdscr.refresh()
     
     # Non-blocking mode during the wait period
     stdscr.timeout(100)
     start_time = time.time()
-    while time.time() - start_time < 1.5:
-        stdscr.getch()  # Discard any key presses during wait period
-        stdscr.refresh()
-        time.sleep(0.1)
     
-    # Clear the waiting message
-    stdscr.move(height // 2 - 2, 0)
-    stdscr.clrtoeol()
-    stdscr.refresh()
+    # Wait for 1 seconds, but allow ESC to cancel
+    while time.time() - start_time < 1:
+        # Keep cursor visible and properly positioned during delay
+        stdscr.move(height // 2 - 2, input_x)
+        stdscr.refresh()
+        
+        key = stdscr.getch()
+        if key == 27:  # ESC key
+            curses.noecho()
+            curses.curs_set(0)  # Hide cursor again
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        time.sleep(0.1)
     
     # Switch to blocking mode for input
     stdscr.timeout(-1)
-    stdscr.addstr(height // 2 - 2, name_x_center, "".ljust(len(waiting_message)), curses.color_pair(1))  # Clear the line
     stdscr.refresh()
     
-    # Get the name input
-    name = stdscr.getstr(height // 2 - 2, name_x_center, 20).decode('utf-8').strip()  # Limit to 20 characters
+    # Get the name input with ESC key handling
+    name = ""
+    cursor_pos = 0
+    max_len = 20
+    
+    while True:
+        # Clear input line and redraw current input
+        stdscr.move(height // 2 - 2, name_x_center)
+        stdscr.clrtoeol()
+        stdscr.addstr(height // 2 - 2, name_x_center, name[:max_len])
+        stdscr.refresh()
+        
+        # Get key
+        ch = stdscr.getch()
+        
+        if ch == 27:  # ESC key
+            curses.noecho()
+            curses.curs_set(0)  # Hide cursor
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        elif ch == 10:  # Enter key
+            break
+        elif ch == 127 or ch == 8:  # Backspace
+            if cursor_pos > 0:
+                name = name[:cursor_pos-1] + name[cursor_pos:]
+                cursor_pos -= 1
+        elif ch >= 32 and ch <= 126 and cursor_pos < max_len:  # Printable ASCII
+            name = name[:cursor_pos] + chr(ch) + name[cursor_pos:]
+            cursor_pos += 1
+    
+    name = name.strip()
     play_beep()  # Beep after name is entered
 
+    # Get the quote input with ESC key handling
     stdscr.clear()
-
-    # Center the prompt for the quote input with character limit message
-    prompt_quote = "Say something: (32 char max)"
+    prompt_quote = "Say something:"
     quote_x_center = (width // 2) - (len(prompt_quote) // 2)
+    
     stdscr.addstr(height // 2 - 4, quote_x_center, prompt_quote, curses.A_BOLD)
     stdscr.refresh()
-    quote_text = stdscr.getstr(height // 2 - 2, quote_x_center, 32).decode('utf-8').strip()  # Limit to 32 characters
+    
+    # Get the quote input
+    quote_text = ""
+    cursor_pos = 0
+    max_len = 32
+    
+    while True:
+        # Clear input line and redraw current input
+        stdscr.move(height // 2 - 2, quote_x_center)
+        stdscr.clrtoeol()
+        stdscr.addstr(height // 2 - 2, quote_x_center, quote_text[:max_len])
+        stdscr.refresh()
+        
+        # Get key
+        ch = stdscr.getch()
+        
+        if ch == 27:  # ESC key
+            curses.noecho()
+            curses.curs_set(0)  # Hide cursor
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        elif ch == 10:  # Enter key
+            break
+        elif ch == 127 or ch == 8:  # Backspace
+            if cursor_pos > 0:
+                quote_text = quote_text[:cursor_pos-1] + quote_text[cursor_pos:]
+                cursor_pos -= 1
+        elif ch >= 32 and ch <= 126 and cursor_pos < max_len:  # Printable ASCII
+            quote_text = quote_text[:cursor_pos] + chr(ch) + quote_text[cursor_pos:]
+            cursor_pos += 1
+    
+    quote_text = quote_text.strip()
     
     curses.noecho()
     curses.curs_set(0)  # Hide cursor again
