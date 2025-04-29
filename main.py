@@ -98,121 +98,51 @@ def play_beep():
 def add_quote(stdscr, pending_quotes):
     curses.echo()
     curses.curs_set(1)  # Show blinking cursor
-    stdscr.timeout(100)  # Set timeout for checking ESC key
-
+    
     stdscr.clear()
     height, width = stdscr.getmaxyx()
 
     # Center the prompt for the name input
-    prompt_name = "What's your name?"
+    prompt_name = "What's your name? (20 char max)"
+    waiting_message = "Please wait..."
     name_x_center = (width // 2) - (len(prompt_name) // 2)
+    waiting_x_center = (width // 2) - (len(waiting_message) // 2)
+    
+    # Show waiting message and delay for 1.5 seconds
     stdscr.addstr(height // 2 - 4, name_x_center, prompt_name, curses.A_BOLD)
-    
-    # Add instruction for escape key
-    escape_instruction = "Press ESC to cancel"
-    stdscr.addstr(height // 2 - 3, (width // 2) - (len(escape_instruction) // 2), escape_instruction, curses.color_pair(1))
-    
+    stdscr.addstr(height // 2 - 2, waiting_x_center, waiting_message, curses.color_pair(1))
     stdscr.refresh()
     
-    # Get name with limit of 20 characters and ability to cancel
-    name = ""
-    name_pos = 0
-    while True:
-        stdscr.move(height // 2 - 2, name_x_center + name_pos)
-        key = stdscr.getch()
-        
-        # Check for escape key to cancel
-        if key == 27:  # ESC key
-            curses.noecho()
-            curses.curs_set(0)  # Hide cursor again
-            stdscr.timeout(100)  # Return to non-blocking mode
-            return None
-        
-        # Check for enter key to finish input
-        if key == 10:  # Enter key
-            break
-            
-        # Check for backspace/delete
-        if key in (8, 127, curses.KEY_BACKSPACE) and name_pos > 0:
-            name_pos -= 1
-            name = name[:-1]
-            # Clear the character
-            stdscr.addstr(height // 2 - 2, name_x_center + name_pos, " ")
-            stdscr.refresh()
-            
-        # Add character if within limit
-        elif 32 <= key <= 126 and name_pos < 20:  # Printable ASCII
-            stdscr.addch(height // 2 - 2, name_x_center + name_pos, key)
-            name += chr(key)
-            name_pos += 1
-            stdscr.refresh()
-            
-            # Add 1.5 second delay after each key press
-            play_beep()  # Beep after key press
-            start_time = time.time()
-            while time.time() - start_time < 1.5:
-                # Check for escape during the delay
-                escape_check = stdscr.getch()
-                if escape_check == 27:  # ESC key
-                    curses.noecho()
-                    curses.curs_set(0)  # Hide cursor again
-                    stdscr.timeout(100)
-                    return None
-                time.sleep(0.1)
+    # Non-blocking mode during the wait period
+    stdscr.timeout(100)
+    start_time = time.time()
+    while time.time() - start_time < 1.5:
+        stdscr.getch()  # Discard any key presses during wait period
+        stdscr.refresh()
+        time.sleep(0.1)
     
-    name = name.strip()
-    if not name:  # Cancel if name is empty
-        curses.noecho()
-        curses.curs_set(0)  # Hide cursor again
-        stdscr.timeout(100)  # Return to non-blocking mode
-        return None
-        
+    # Clear the waiting message
+    stdscr.move(height // 2 - 2, 0)
+    stdscr.clrtoeol()
+    stdscr.refresh()
+    
+    # Switch to blocking mode for input
+    stdscr.timeout(-1)
+    stdscr.addstr(height // 2 - 2, name_x_center, "".ljust(len(waiting_message)), curses.color_pair(1))  # Clear the line
+    stdscr.refresh()
+    
+    # Get the name input
+    name = stdscr.getstr(height // 2 - 2, name_x_center, 20).decode('utf-8').strip()  # Limit to 20 characters
+    play_beep()  # Beep after name is entered
+
     stdscr.clear()
 
     # Center the prompt for the quote input with character limit message
-    prompt_quote = "Say something:"
+    prompt_quote = "Say something: (32 char max)"
     quote_x_center = (width // 2) - (len(prompt_quote) // 2)
     stdscr.addstr(height // 2 - 4, quote_x_center, prompt_quote, curses.A_BOLD)
-    
-    # Add instruction for escape key
-    stdscr.addstr(height // 2 - 3, (width // 2) - (len(escape_instruction) // 2), escape_instruction, curses.color_pair(1))
-    
     stdscr.refresh()
-    
-    # Set timeout back to -1 for quote input (no delay needed)
-    stdscr.timeout(-1)
-    quote_text = ""
-    
-    # Get quote with ability to cancel
-    while True:
-        stdscr.move(height // 2 - 2, quote_x_center + len(quote_text))
-        key = stdscr.getch()
-        
-        # Check for escape key to cancel
-        if key == 27:  # ESC key
-            curses.noecho()
-            curses.curs_set(0)  # Hide cursor again
-            stdscr.timeout(100)  # Return to non-blocking mode
-            return None
-            
-        # Enter key to finish
-        if key == 10:
-            break
-            
-        # Process backspace
-        if key in (8, 127, curses.KEY_BACKSPACE) and len(quote_text) > 0:
-            quote_text = quote_text[:-1]
-            # Clear the character
-            stdscr.addstr(height // 2 - 2, quote_x_center + len(quote_text), " ")
-            
-        # Add character if within limit
-        elif 32 <= key <= 126 and len(quote_text) < 32:  # ASCII printable and within limit
-            stdscr.addch(key)
-            quote_text += chr(key)
-            
-        stdscr.refresh()
-    
-    quote_text = quote_text.strip()
+    quote_text = stdscr.getstr(height // 2 - 2, quote_x_center, 32).decode('utf-8').strip()  # Limit to 32 characters
     
     curses.noecho()
     curses.curs_set(0)  # Hide cursor again
@@ -325,8 +255,8 @@ def typewriter_effect(stdscr, y, text, color_pair, center_x):
         time.sleep(0.03)
 
 def draw_menu(stdscr, width, height):
-    footer = "PRESS ANY KEY TO START"
-    # Make "PRESS ANY KEY..." bold, no blink.
+    footer = "Press any key to add a quote"
+    # Make "Press any key..." bold, no blink.
     blink_attr = curses.color_pair(2) | curses.A_BOLD
     stdscr.addstr(height - 3, (width // 2) - (len(footer) // 2), footer, blink_attr)
     # Add copyright notice
