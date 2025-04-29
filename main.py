@@ -108,7 +108,7 @@ def add_quote(stdscr, pending_quotes):
     name_x_center = (width // 2) - (len(prompt_name) // 2)
     stdscr.addstr(height // 2 - 4, name_x_center, prompt_name, curses.A_BOLD)
     stdscr.refresh()
-    name = stdscr.getstr(height // 2 - 2, name_x_center, 20).decode('utf-8').strip()  # Limit to 20 characters
+    name = stdscr.getstr(height // 2 - 2, name_x_center, 22).decode('utf-8').strip()  # Limit to 20 characters
     play_beep()  # Beep after name is entered
 
     stdscr.clear()
@@ -118,7 +118,7 @@ def add_quote(stdscr, pending_quotes):
     quote_x_center = (width // 2) - (len(prompt_quote) // 2)
     stdscr.addstr(height // 2 - 4, quote_x_center, prompt_quote, curses.A_BOLD)
     stdscr.refresh()
-    quote_text = stdscr.getstr(height // 2 - 2, quote_x_center, 32).decode('utf-8').strip()  # Limit to 32 characters
+    quote_text = stdscr.getstr(height // 2 - 2, quote_x_center, 30).decode('utf-8').strip()  # Limit to 32 characters
     
     curses.noecho()
     curses.curs_set(0)  # Hide cursor again
