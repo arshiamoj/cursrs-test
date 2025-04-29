@@ -4,10 +4,26 @@ import os
 import time
 import pyfiglet
 import random
+import platform
+import subprocess
 
 QUOTES_FILE = "quotes.json"
 PENDING_QUOTES_FILE = "pending_quotes.json"
 REMOVED_QUOTES_FILE = "removed_quotes.json"
+
+# Detect if we're running on a Raspberry Pi or another system
+IS_RASPBERRY_PI = platform.system() == "Linux" and os.path.exists("/sys/firmware/devicetree/base/model") and "raspberry pi" in open("/sys/firmware/devicetree/base/model").read().lower()
+
+# Only import gpiozero if we're on a Raspberry Pi
+if IS_RASPBERRY_PI:
+    try:
+        from gpiozero import PWMOutputDevice
+        buzzer = PWMOutputDevice(18)
+        HAS_BUZZER = True
+    except ImportError:
+        HAS_BUZZER = False
+else:
+    HAS_BUZZER = False
 
 def load_quotes(file_path):
     if os.path.exists(file_path):
@@ -23,8 +39,29 @@ def save_quotes(quotes, file_path):
         json.dump(quotes, f, indent=2)
 
 def play_beep():
-    sound_file = "/home/mojtaba/cursrs-test/beep.wav"  # Replace with the actual path to your sound file
-    os.system(f"aplay -q {sound_file} &") # -q for quiet, & to run in background
+    """Play a beep sound using either GPIO buzzer or system beep"""
+    if HAS_BUZZER:
+        # Use the GPIO buzzer on Raspberry Pi
+        buzzer.frequency = 250  # Set frequency to 250Hz
+        buzzer.value = 0.2      # Set duty cycle to 20%
+        time.sleep(0.2)         # Play for 0.2 seconds
+        buzzer.value = 0        # Stop the sound
+    else:
+        # Use system beep on other platforms
+        if platform.system() == "Darwin":  # MacOS
+            # Use afplay (built-in on MacOS) or print character bell
+            subprocess.run(["osascript", "-e", "beep"])
+        elif platform.system() == "Windows":
+            # Windows - use winsound if available
+            try:
+                import winsound
+                winsound.Beep(250, 200)  # 250Hz for 200ms
+            except ImportError:
+                # Fallback to ASCII bell
+                print("\a", end="", flush=True)
+        else:
+            # Linux/Unix without GPIO - use ASCII bell
+            print("\a", end="", flush=True)
 
 def add_quote(stdscr, pending_quotes):
     curses.echo()
@@ -35,7 +72,7 @@ def add_quote(stdscr, pending_quotes):
     height, width = stdscr.getmaxyx()
 
     # Center the prompt for the name input
-    prompt_name = "Whats your name?"
+    prompt_name = "What's your name?"
     name_x_center = (width // 2) - (len(prompt_name) // 2)
     stdscr.addstr(height // 2 - 4, name_x_center, prompt_name, curses.A_BOLD)
     stdscr.refresh()
@@ -289,6 +326,11 @@ def main(stdscr):
         if newly_added_quote is None and key != 16:  # Only reset if we didn't open the admin panel
             current_quote = None
 
+def cleanup():
+    """Clean up resources before exiting"""
+    if HAS_BUZZER:
+        buzzer.value = 0
+
 # Ensure all required files exist
 if not os.path.exists(QUOTES_FILE):
     with open(QUOTES_FILE, 'w') as f:
@@ -302,4 +344,7 @@ if not os.path.exists(REMOVED_QUOTES_FILE):
     with open(REMOVED_QUOTES_FILE, 'w') as f:
         json.dump([], f)
 
-curses.wrapper(main)
+try:
+    curses.wrapper(main)
+finally:
+    cleanup()  # Make sure buzzer is turned off when the program exits
