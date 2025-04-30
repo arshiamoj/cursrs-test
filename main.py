@@ -193,6 +193,162 @@ def add_quote(stdscr, pending_quotes):
     while True:
         ch = stdscr.getch()
         
+        if ch == curses.ERR:  # Timeout occurred
+            curses.curs_set(0)  # Hide cursor again
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        elif ch == 27:  # ESC key
+            curses.curs_set(0)  # Hide cursor again
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        elif ch == 10:  # Enter key
+            break
+        elif ch == curses.KEY_BACKSPACE or ch == 127 or ch == 8:
+            if name:  # If there's text to delete
+                name = name[:-1]
+                # Clear line and redraw
+                stdscr.addstr(height // 2 - 2, name_x_center, " " * NAME_CHAR_LIMIT)
+                stdscr.addstr(height // 2 - 2, name_x_center, name)
+                stdscr.move(height // 2 - 2, name_x_center + len(name))
+        elif 32 <= ch <= 126:  # Printable ASCII characters
+            if len(name) < NAME_CHAR_LIMIT:
+                name += chr(ch)
+                stdscr.addch(height // 2 - 2, name_x_center + len(name) - 1, ch)
+            else:
+                # Play error beep when limit is reached
+                play_error_beep()
+        
+        stdscr.refresh()
+    
+    # If no actual content was entered, return to main screen
+    if not name:
+        curses.curs_set(0)  # Hide cursor again
+        stdscr.timeout(100)  # Return to non-blocking mode
+        return None
+    
+    # Play beep after name is entered
+    play_beep()
+
+    # Prepare for quote input
+    stdscr.clear()
+
+    # Center the prompt for the quote input
+    prompt_quote = "Say something:"
+    quote_x_center = (width // 2) - (len(prompt_quote) // 2)
+    stdscr.addstr(height // 2 - 4, quote_x_center, prompt_quote, curses.A_BOLD)
+    
+    # Position cursor and refresh
+    stdscr.move(height // 2 - 2, quote_x_center)
+    stdscr.refresh()
+    
+    # Show blinking cursor
+    curses.curs_set(1)
+    
+    # Set up 30-second timeout for quote input too
+    stdscr.timeout(30000)  # 30-second timeout (30000 milliseconds)
+    
+    # Enable input mode for quote
+    quote_text = ""
+    
+    # Handle character-by-character input with limit check for quote
+    while True:
+        ch = stdscr.getch()
+        
+        if ch == curses.ERR:  # Timeout occurred
+            curses.curs_set(0)  # Hide cursor again
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        elif ch == 27:  # ESC key
+            curses.curs_set(0)  # Hide cursor again
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        elif ch == 10:  # Enter key
+            break
+        elif ch == curses.KEY_BACKSPACE or ch == 127 or ch == 8:
+            if quote_text:  # If there's text to delete
+                quote_text = quote_text[:-1]
+                # Clear line and redraw
+                stdscr.addstr(height // 2 - 2, quote_x_center, " " * QUOTE_CHAR_LIMIT)
+                stdscr.addstr(height // 2 - 2, quote_x_center, quote_text)
+                stdscr.move(height // 2 - 2, quote_x_center + len(quote_text))
+        elif 32 <= ch <= 126:  # Printable ASCII characters
+            if len(quote_text) < QUOTE_CHAR_LIMIT:
+                quote_text += chr(ch)
+                stdscr.addch(height // 2 - 2, quote_x_center + len(quote_text) - 1, ch)
+            else:
+                # Play error beep when limit is reached
+                play_error_beep()
+        
+        stdscr.refresh()
+    
+    # Reset terminal modes
+    curses.curs_set(0)  # Hide cursor again
+    stdscr.timeout(100)  # Return to non-blocking mode
+    
+    # If no actual content was entered, return to main screen
+    if not quote_text:
+        return None
+
+    # Create and save the new quote
+    if name and quote_text:
+        new_quote = {"name": name, "quote": quote_text}
+        pending_quotes.append(new_quote)
+        save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+        play_success_jingle()  # Play success jingle after quote is added
+        return new_quote  # Return the newly added quote
+    
+    return None    # Setup to capture ESC key properly
+    stdscr.keypad(True)
+    
+    # Play beep first
+    play_beep()
+    
+    # Prepare screen for input
+    stdscr.clear()
+    height, width = stdscr.getmaxyx()
+    
+    # Set character limits
+    NAME_CHAR_LIMIT = 22
+    QUOTE_CHAR_LIMIT = 30
+    
+    # Center the prompt for the name input
+    prompt_name = "What's your name?"
+    name_x_center = (width // 2) - (len(prompt_name) // 2)
+    stdscr.addstr(height // 2 - 4, name_x_center, prompt_name, curses.A_BOLD)
+
+    # Position cursor where input will be collected
+    stdscr.move(height // 2 - 2, name_x_center)
+    stdscr.refresh()
+    
+    # Show blinking cursor during delay
+    curses.curs_set(1)
+    
+    # Set non-blocking mode to flush any keystrokes during the delay
+    stdscr.nodelay(True)
+    
+    # Wait 1 second while flushing any keyboard input
+    start_time = time.time()
+    while time.time() - start_time < 1.0:
+        # Continuously flush the input buffer during the delay
+        while stdscr.getch() != curses.ERR:
+            pass
+        time.sleep(0.01)  # Small sleep to prevent CPU hogging
+    
+    # Now setup for name input with 30-second timeout
+    curses.curs_set(1)  # Show cursor
+    stdscr.nodelay(False)  # Turn off non-blocking mode
+    stdscr.timeout(30000)  # 30-second timeout (30000 milliseconds)
+    
+    # Prepare for name input
+    name = ""
+    curses.noecho()  # Don't automatically echo input
+    
+    name_x_pos = name_x_center
+    
+    # Check for ESC and handle character-by-character input with limit check
+    while True:
+        ch = stdscr.getch()
+        
         if ch == 27:  # ESC key
             curses.curs_set(0)  # Hide cursor again
             stdscr.timeout(100)  # Return to non-blocking mode
@@ -241,6 +397,11 @@ def add_quote(stdscr, pending_quotes):
     # Show blinking cursor
     curses.curs_set(1)
     
+    # Now setup for name input with 30-second timeout
+    curses.curs_set(1)  # Show cursor
+    stdscr.nodelay(False)  # Turn off non-blocking mode
+    stdscr.timeout(30000)  
+
     # Enable input mode for quote
     quote_text = ""
     
