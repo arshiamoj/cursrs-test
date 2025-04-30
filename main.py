@@ -95,6 +95,44 @@ def play_beep():
             # Linux/Unix without GPIO - use ASCII bell
             print("\a", end="", flush=True)
 
+def play_error_beep():
+    """Play an error beep sound when user reaches character limit"""
+    if HAS_BUZZER:
+        # Error sound pattern: high tone → low tone 
+        # First a short high-pitched beep
+        buzzer.frequency = 800  # Higher frequency for alert sound
+        buzzer.value = 0.6      # Louder
+        time.sleep(0.1)         # Very short duration
+        buzzer.value = 0        # Short pause
+        time.sleep(0.05)
+        
+        # Then a longer lower tone
+        buzzer.frequency = 180  # Lower frequency 
+        buzzer.value = 0.7      # Even louder
+        time.sleep(0.3)         # Longer duration
+        buzzer.value = 0        # Stop sound
+    else:
+        # Use system beep on other platforms
+        if platform.system() == "Darwin":  # MacOS
+            subprocess.run(["osascript", "-e", "beep 2"])  # Use system beep
+        elif platform.system() == "Windows":
+            # Windows - use winsound if available
+            try:
+                import winsound
+                # Play two tones in sequence for the error sound
+                winsound.Beep(800, 100)  # High pitch, short
+                winsound.Beep(180, 300)  # Low pitch, longer
+            except ImportError:
+                # Fallback to ASCII bell
+                print("\a", end="", flush=True)
+                time.sleep(0.2)
+                print("\a", end="", flush=True)
+        else:
+            # Linux/Unix without GPIO - use ASCII bell twice
+            print("\a", end="", flush=True)
+            time.sleep(0.2)
+            print("\a", end="", flush=True)
+
 def add_quote(stdscr, pending_quotes):
     # Setup to capture ESC key properly
     stdscr.keypad(True)
@@ -106,10 +144,18 @@ def add_quote(stdscr, pending_quotes):
     stdscr.clear()
     height, width = stdscr.getmaxyx()
     
+    # Set character limits
+    NAME_CHAR_LIMIT = 22
+    QUOTE_CHAR_LIMIT = 30
+    
     # Center the prompt for the name input
     prompt_name = "What's your name?"
     name_x_center = (width // 2) - (len(prompt_name) // 2)
     stdscr.addstr(height // 2 - 4, name_x_center, prompt_name, curses.A_BOLD)
+    
+    # Show character limit info
+    limit_info = f"(Max {NAME_CHAR_LIMIT} characters)"
+    stdscr.addstr(height // 2 - 3, (width // 2) - (len(limit_info) // 2), limit_info, curses.color_pair(1))
     
     # Position cursor where input will be collected
     stdscr.move(height // 2 - 2, name_x_center)
@@ -134,37 +180,41 @@ def add_quote(stdscr, pending_quotes):
     stdscr.nodelay(False)  # Turn off non-blocking mode
     stdscr.timeout(30000)  # 30-second timeout (30000 milliseconds)
     
-    # Check for ESC key continuously without echo
-    curses.noecho()
-    escape_check = True
-    while escape_check:
+    # Prepare for name input
+    name = ""
+    curses.noecho()  # Don't automatically echo input
+    
+    name_x_pos = name_x_center
+    
+    # Check for ESC and handle character-by-character input with limit check
+    while True:
         ch = stdscr.getch()
+        
         if ch == 27:  # ESC key
             curses.curs_set(0)  # Hide cursor again
             stdscr.timeout(100)  # Return to non-blocking mode
             return None
-        elif ch != curses.ERR:
-            # First character of input, continue to normal input mode
-            curses.ungetch(ch)
-            escape_check = False
-    
-    # Now get the string with echo
-    curses.echo()
-    name_input = stdscr.getstr(height // 2 - 2, name_x_center, 22)
-    
-    # If timeout occurred or empty input, return to main screen
-    if name_input is None or name_input == b'':
-        curses.noecho()
-        curses.curs_set(0)  # Hide cursor again
-        stdscr.timeout(100)  # Return to non-blocking mode
-        return None
-    
-    # Process valid input
-    name = name_input.decode('utf-8').strip()
+        elif ch == 10:  # Enter key
+            break
+        elif ch == curses.KEY_BACKSPACE or ch == 127 or ch == 8:
+            if name:  # If there's text to delete
+                name = name[:-1]
+                # Clear line and redraw
+                stdscr.addstr(height // 2 - 2, name_x_center, " " * NAME_CHAR_LIMIT)
+                stdscr.addstr(height // 2 - 2, name_x_center, name)
+                stdscr.move(height // 2 - 2, name_x_center + len(name))
+        elif 32 <= ch <= 126:  # Printable ASCII characters
+            if len(name) < NAME_CHAR_LIMIT:
+                name += chr(ch)
+                stdscr.addch(height // 2 - 2, name_x_center + len(name) - 1, ch)
+            else:
+                # Play error beep when limit is reached
+                play_error_beep()
+        
+        stdscr.refresh()
     
     # If no actual content was entered, return to main screen
     if not name:
-        curses.noecho()
         curses.curs_set(0)  # Hide cursor again
         stdscr.timeout(100)  # Return to non-blocking mode
         return None
@@ -180,6 +230,10 @@ def add_quote(stdscr, pending_quotes):
     quote_x_center = (width // 2) - (len(prompt_quote) // 2)
     stdscr.addstr(height // 2 - 4, quote_x_center, prompt_quote, curses.A_BOLD)
     
+    # Show character limit info
+    limit_info = f"(Max {QUOTE_CHAR_LIMIT} characters)"
+    stdscr.addstr(height // 2 - 3, (width // 2) - (len(limit_info) // 2), limit_info, curses.color_pair(1))
+    
     # Position cursor and refresh
     stdscr.move(height // 2 - 2, quote_x_center)
     stdscr.refresh()
@@ -187,39 +241,39 @@ def add_quote(stdscr, pending_quotes):
     # Show blinking cursor
     curses.curs_set(1)
     
-    # Enable input mode for quote with 30-second timeout
-    stdscr.timeout(30000)  # 30-second timeout (30000 milliseconds)
+    # Enable input mode for quote
+    quote_text = ""
     
-    # Check for ESC key continuously without echo
-    curses.noecho()
-    escape_check = True
-    while escape_check:
+    # Handle character-by-character input with limit check for quote
+    while True:
         ch = stdscr.getch()
+        
         if ch == 27:  # ESC key
             curses.curs_set(0)  # Hide cursor again
             stdscr.timeout(100)  # Return to non-blocking mode
             return None
-        elif ch != curses.ERR:
-            # First character of input, continue to normal input mode
-            curses.ungetch(ch)
-            escape_check = False
-    
-    # Now get the string with echo
-    curses.echo()
-    # Get quote input with timeout
-    quote_input = stdscr.getstr(height // 2 - 2, quote_x_center, 30)
+        elif ch == 10:  # Enter key
+            break
+        elif ch == curses.KEY_BACKSPACE or ch == 127 or ch == 8:
+            if quote_text:  # If there's text to delete
+                quote_text = quote_text[:-1]
+                # Clear line and redraw
+                stdscr.addstr(height // 2 - 2, quote_x_center, " " * QUOTE_CHAR_LIMIT)
+                stdscr.addstr(height // 2 - 2, quote_x_center, quote_text)
+                stdscr.move(height // 2 - 2, quote_x_center + len(quote_text))
+        elif 32 <= ch <= 126:  # Printable ASCII characters
+            if len(quote_text) < QUOTE_CHAR_LIMIT:
+                quote_text += chr(ch)
+                stdscr.addch(height // 2 - 2, quote_x_center + len(quote_text) - 1, ch)
+            else:
+                # Play error beep when limit is reached
+                play_error_beep()
+        
+        stdscr.refresh()
     
     # Reset terminal modes
-    curses.noecho()
     curses.curs_set(0)  # Hide cursor again
     stdscr.timeout(100)  # Return to non-blocking mode
-    
-    # If timeout occurred or empty input, return to main screen
-    if quote_input is None or quote_input == b'':
-        return None
-    
-    # Process valid input
-    quote_text = quote_input.decode('utf-8').strip()
     
     # If no actual content was entered, return to main screen
     if not quote_text:
