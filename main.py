@@ -424,9 +424,7 @@ def draw_menu(stdscr, width, height):
     # Add copyright notice
     copyright_text = "© Retro Mowz"
     stdscr.addstr(height - 1, (width // 2) - (len(copyright_text) // 2), copyright_text, curses.color_pair(1))
-    # Add exit instruction
-    exit_text = "Exit: Shift+0"
-    stdscr.addstr(height - 1, 2, exit_text, curses.color_pair(1))
+ 
 
 def check_exit_combination(key):
     """Check if the key is the Shift+0 combination (ASCII 41 is ")") """
