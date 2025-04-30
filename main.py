@@ -472,7 +472,7 @@ def main(stdscr):
     footer = "Press any key to add a quote"
     footer_blink = True
     last_blink_time = time.time()
-    blink_interval = 0.5  # Blink every half second
+    blink_interval = 0.8  # Blink every half second
 
     while not EXIT_APP:
         stdscr.clear()
