@@ -6,10 +6,14 @@ import pyfiglet
 import random
 import platform
 import subprocess
+import signal
 
 QUOTES_FILE = "quotes.json"
 PENDING_QUOTES_FILE = "pending_quotes.json"
 REMOVED_QUOTES_FILE = "removed_quotes.json"
+
+# Flag to control application exit
+EXIT_APP = False
 
 # Detect if we're running on a Raspberry Pi or another system
 IS_RASPBERRY_PI = platform.system() == "Linux" and os.path.exists("/sys/firmware/devicetree/base/model") and "raspberry pi" in open("/sys/firmware/devicetree/base/model").read().lower()
@@ -24,6 +28,13 @@ if IS_RASPBERRY_PI:
         HAS_BUZZER = False
 else:
     HAS_BUZZER = False
+
+def signal_handler(sig, frame):
+    # Ignore Ctrl+C (SIGINT) - do nothing when it's pressed
+    pass
+
+# Set up the signal handler for SIGINT (Ctrl+C)
+signal.signal(signal.SIGINT, signal_handler)
 
 def load_quotes(file_path):
     if os.path.exists(file_path):
@@ -106,11 +117,7 @@ def play_error_beep():
         buzzer.value = 0        # Short pause
         time.sleep(0.05)
         
-        # Then a longer lower tone
-        buzzer.frequency = 180  # Lower frequency 
-        buzzer.value = 0.7      # Even louder
-        time.sleep(0.3)         # Longer duration
-        buzzer.value = 0        # Stop sound
+
     else:
         # Use system beep on other platforms
         if platform.system() == "Darwin":  # MacOS
@@ -152,11 +159,7 @@ def add_quote(stdscr, pending_quotes):
     prompt_name = "What's your name?"
     name_x_center = (width // 2) - (len(prompt_name) // 2)
     stdscr.addstr(height // 2 - 4, name_x_center, prompt_name, curses.A_BOLD)
-    
-    # Show character limit info
-    limit_info = f"(Max {NAME_CHAR_LIMIT} characters)"
-    stdscr.addstr(height // 2 - 3, (width // 2) - (len(limit_info) // 2), limit_info, curses.color_pair(1))
-    
+
     # Position cursor where input will be collected
     stdscr.move(height // 2 - 2, name_x_center)
     stdscr.refresh()
@@ -230,10 +233,7 @@ def add_quote(stdscr, pending_quotes):
     quote_x_center = (width // 2) - (len(prompt_quote) // 2)
     stdscr.addstr(height // 2 - 4, quote_x_center, prompt_quote, curses.A_BOLD)
     
-    # Show character limit info
-    limit_info = f"(Max {QUOTE_CHAR_LIMIT} characters)"
-    stdscr.addstr(height // 2 - 3, (width // 2) - (len(limit_info) // 2), limit_info, curses.color_pair(1))
-    
+
     # Position cursor and refresh
     stdscr.move(height // 2 - 2, quote_x_center)
     stdscr.refresh()
@@ -290,12 +290,16 @@ def add_quote(stdscr, pending_quotes):
     return None
 
 def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
+    global EXIT_APP
     curses.curs_set(0)  # Hide cursor
     stdscr.timeout(100)  # Non-blocking mode
     
     current_index = 0
     
     while True:
+        if EXIT_APP:
+            break
+            
         stdscr.clear()
         height, width = stdscr.getmaxyx()
         
@@ -402,6 +406,9 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
             # Removed beep for quote rejection
             if current_index >= len(pending_quotes) and current_index > 0:
                 current_index = len(pending_quotes) - 1
+        elif check_exit_combination(key):  # Check for the exit combination (Shift+0)
+            EXIT_APP = True
+            break
 
 def typewriter_effect(stdscr, y, text, color_pair, center_x):
     for i, ch in enumerate(text):
@@ -417,8 +424,16 @@ def draw_menu(stdscr, width, height):
     # Add copyright notice
     copyright_text = "© Retro Mowz"
     stdscr.addstr(height - 1, (width // 2) - (len(copyright_text) // 2), copyright_text, curses.color_pair(1))
+    # Add exit instruction
+    exit_text = "Exit: Shift+0"
+    stdscr.addstr(height - 1, 2, exit_text, curses.color_pair(1))
+
+def check_exit_combination(key):
+    """Check if the key is the Shift+0 combination (ASCII 41 is ")") """
+    return key == 41  # ASCII code for the ")" character (Shift+0)
 
 def main(stdscr):
+    global EXIT_APP
     curses.curs_set(0)  # Hide cursor
     stdscr.timeout(100)  # Non-blocking getch
 
@@ -447,7 +462,7 @@ def main(stdscr):
 
     vertical_space_before_title = 2  # Number of empty lines before the title
 
-    while True:
+    while not EXIT_APP:
         stdscr.clear()
         height, width = stdscr.getmaxyx()
 
@@ -518,9 +533,13 @@ def main(stdscr):
         # Wait 5 seconds while listening for keys
         start_time = time.time()
         newly_added_quote = None
-        while time.time() - start_time < 5:
+        while time.time() - start_time < 5 and not EXIT_APP:
             key = stdscr.getch()
-            if key == 16:  # CTRL+P (ASCII 16 is DLE, which is what CTRL+P sends)
+            
+            if check_exit_combination(key):  # Check if it's the exit combination (Shift+0)
+                EXIT_APP = True
+                break
+            elif key == 16:  # CTRL+P (ASCII 16 is DLE, which is what CTRL+P sends)
                 # No beep when entering admin panel
                 admin_panel(stdscr, pending_quotes, quotes, removed_quotes)
                 current_quote = None  # Reset to show a random quote after admin panel
