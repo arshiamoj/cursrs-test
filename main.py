@@ -96,6 +96,9 @@ def play_beep():
             print("\a", end="", flush=True)
 
 def add_quote(stdscr, pending_quotes):
+    # Setup to capture ESC key properly
+    stdscr.keypad(True)
+    
     # Play beep first
     play_beep()
     
@@ -126,15 +129,50 @@ def add_quote(stdscr, pending_quotes):
             pass
         time.sleep(0.01)  # Small sleep to prevent CPU hogging
     
-    # Now enable proper input mode
+    # Now setup for name input with 30-second timeout
+    curses.curs_set(1)  # Show cursor
     stdscr.nodelay(False)  # Turn off non-blocking mode
-    curses.echo()  # Echo input
-    stdscr.timeout(-1)  # Wait indefinitely for input
+    stdscr.timeout(30000)  # 30-second timeout (30000 milliseconds)
     
-    # Collect name input
-    name = stdscr.getstr(height // 2 - 2, name_x_center, 22).decode('utf-8').strip()  # Limit to 20 characters
-    play_beep()  # Beep after name is entered
+    # Check for ESC key continuously without echo
+    curses.noecho()
+    escape_check = True
+    while escape_check:
+        ch = stdscr.getch()
+        if ch == 27:  # ESC key
+            curses.curs_set(0)  # Hide cursor again
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        elif ch != curses.ERR:
+            # First character of input, continue to normal input mode
+            curses.ungetch(ch)
+            escape_check = False
+    
+    # Now get the string with echo
+    curses.echo()
+    name_input = stdscr.getstr(height // 2 - 2, name_x_center, 22)
+    
+    # If timeout occurred or empty input, return to main screen
+    if name_input is None or name_input == b'':
+        curses.noecho()
+        curses.curs_set(0)  # Hide cursor again
+        stdscr.timeout(100)  # Return to non-blocking mode
+        return None
+    
+    # Process valid input
+    name = name_input.decode('utf-8').strip()
+    
+    # If no actual content was entered, return to main screen
+    if not name:
+        curses.noecho()
+        curses.curs_set(0)  # Hide cursor again
+        stdscr.timeout(100)  # Return to non-blocking mode
+        return None
+    
+    # Play beep after name is entered
+    play_beep()
 
+    # Prepare for quote input
     stdscr.clear()
 
     # Center the prompt for the quote input
@@ -149,23 +187,52 @@ def add_quote(stdscr, pending_quotes):
     # Show blinking cursor
     curses.curs_set(1)
     
-    # Enable input mode for quote (no delay for the message field)
+    # Enable input mode for quote with 30-second timeout
+    stdscr.timeout(30000)  # 30-second timeout (30000 milliseconds)
+    
+    # Check for ESC key continuously without echo
+    curses.noecho()
+    escape_check = True
+    while escape_check:
+        ch = stdscr.getch()
+        if ch == 27:  # ESC key
+            curses.curs_set(0)  # Hide cursor again
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        elif ch != curses.ERR:
+            # First character of input, continue to normal input mode
+            curses.ungetch(ch)
+            escape_check = False
+    
+    # Now get the string with echo
     curses.echo()
-    stdscr.timeout(-1)  # Wait indefinitely for input
+    # Get quote input with timeout
+    quote_input = stdscr.getstr(height // 2 - 2, quote_x_center, 30)
     
-    # Collect quote input
-    quote_text = stdscr.getstr(height // 2 - 2, quote_x_center, 30).decode('utf-8').strip()  # Limit to 32 characters
-    
+    # Reset terminal modes
     curses.noecho()
     curses.curs_set(0)  # Hide cursor again
     stdscr.timeout(100)  # Return to non-blocking mode
+    
+    # If timeout occurred or empty input, return to main screen
+    if quote_input is None or quote_input == b'':
+        return None
+    
+    # Process valid input
+    quote_text = quote_input.decode('utf-8').strip()
+    
+    # If no actual content was entered, return to main screen
+    if not quote_text:
+        return None
 
+    # Create and save the new quote
     if name and quote_text:
         new_quote = {"name": name, "quote": quote_text}
         pending_quotes.append(new_quote)
         save_quotes(pending_quotes, PENDING_QUOTES_FILE)
         play_success_jingle()  # Play success jingle after quote is added
         return new_quote  # Return the newly added quote
+    
     return None
 
 def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
@@ -186,7 +253,6 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
         pending_count = f"Pending: {len(pending_quotes)}"
         approved_count = f"Approved: {len(approved_quotes)}"
         removed_count = f"Removed: {len(removed_quotes)}"
-        total_count = f"Total: {len(pending_quotes) + len(approved_quotes) + len(removed_quotes)}"
         
         # Display counts on row 3
         counts_row = 3
@@ -204,10 +270,6 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
         start_x += len(approved_count) + padding
         
         stdscr.addstr(counts_row, start_x, removed_count, curses.color_pair(4))
-        
-        # Display total count centered on the next row
-        total_row = counts_row + 2
-        stdscr.addstr(total_row, (width // 2) - (len(total_count) // 2), total_count, curses.A_BOLD | curses.color_pair(1))
         
         # No pending quotes
         if not pending_quotes:
@@ -408,6 +470,9 @@ def main(stdscr):
                 # No beep when entering admin panel
                 admin_panel(stdscr, pending_quotes, quotes, removed_quotes)
                 current_quote = None  # Reset to show a random quote after admin panel
+                break
+            elif key == 27:  # ESC key
+                # Do nothing, but exit the loop to return to the main screen
                 break
             elif key != curses.ERR:  # Check if any other key was pressed
                 newly_added_quote = add_quote(stdscr, pending_quotes)
