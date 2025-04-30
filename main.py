@@ -152,13 +152,13 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
         removed_count = f"Removed: {len(removed_quotes)}"
         total_count = f"Total: {len(pending_quotes) + len(approved_quotes) + len(removed_quotes)}"
         
-        # Display counts on line 3
+        # Display counts on row 3
         counts_row = 3
-        padding = 2  # Space between counts
+        padding = 4  # Space between counts
         
-        # Calculate the total width needed for all counts
-        total_width = len(pending_count) + len(approved_count) + len(removed_count) + len(total_count) + (padding * 3)
-        start_x = (width // 2) - (total_width // 2)
+        # Calculate the total width needed for the three main counts
+        three_counts_width = len(pending_count) + len(approved_count) + len(removed_count) + (padding * 2)
+        start_x = (width // 2) - (three_counts_width // 2)
         
         # Display each count with appropriate color
         stdscr.addstr(counts_row, start_x, pending_count, curses.color_pair(1))
@@ -168,9 +168,10 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
         start_x += len(approved_count) + padding
         
         stdscr.addstr(counts_row, start_x, removed_count, curses.color_pair(4))
-        start_x += len(removed_count) + padding
         
-        stdscr.addstr(counts_row, start_x, total_count, curses.A_BOLD | curses.color_pair(1))
+        # Display total count centered on the next row
+        total_row = counts_row + 2
+        stdscr.addstr(total_row, (width // 2) - (len(total_count) // 2), total_count, curses.A_BOLD | curses.color_pair(1))
         
         # No pending quotes
         if not pending_quotes:
