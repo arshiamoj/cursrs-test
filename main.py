@@ -577,15 +577,37 @@ def typewriter_effect(stdscr, y, text, color_pair, center_x):
         stdscr.refresh()
         time.sleep(0.03)
 
-def draw_menu(stdscr, width, height):
+
+def draw_menu(stdscr):
+    curses.curs_set(0)
+    stdscr.nodelay(True)  # Make getch non-blocking
+    height, width = stdscr.getmaxyx()
+    
     footer = "Press any key to add a quote"
-    # Make "Press any key..." bold AND blinking
-    blink_attr = curses.color_pair(2) | curses.A_BOLD | curses.A_BLINK
-    stdscr.addstr(height - 3, (width // 2) - (len(footer) // 2), footer, blink_attr)
-    # Add copyright notice
     copyright_text = "© Retro Mowz"
-    stdscr.addstr(height - 1, (width // 2) - (len(copyright_text) // 2), copyright_text, curses.color_pair(1))
- 
+
+    blink = True
+    while True:
+        stdscr.clear()
+
+        # Blinking footer
+        if blink:
+            stdscr.attron(curses.color_pair(2) | curses.A_BOLD)
+            stdscr.addstr(height - 3, (width // 2) - (len(footer) // 2), footer)
+            stdscr.attroff(curses.color_pair(2) | curses.A_BOLD)
+
+        # Static copyright line
+        stdscr.attron(curses.color_pair(1))
+        stdscr.addstr(height - 1, (width // 2) - (len(copyright_text) // 2), copyright_text)
+        stdscr.attroff(curses.color_pair(1))
+
+        stdscr.refresh()
+        time.sleep(0.5)
+        blink = not blink
+
+        # Break on any key press
+        if stdscr.getch() != -1:
+            break
 
 def check_exit_combination(key):
     """Check if the key is the Shift+0 combination (ASCII 41 is ")") """
