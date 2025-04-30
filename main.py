@@ -96,28 +96,64 @@ def play_beep():
             print("\a", end="", flush=True)
 
 def add_quote(stdscr, pending_quotes):
-    curses.echo()
-    curses.curs_set(1)  # Show blinking cursor
-    stdscr.timeout(-1)  # Wait indefinitely for input
-
+    # Play beep first
+    play_beep()
+    
+    # Prepare screen for input
     stdscr.clear()
     height, width = stdscr.getmaxyx()
-
+    
     # Center the prompt for the name input
     prompt_name = "What's your name?"
     name_x_center = (width // 2) - (len(prompt_name) // 2)
     stdscr.addstr(height // 2 - 4, name_x_center, prompt_name, curses.A_BOLD)
+    
+    # Position cursor where input will be collected
+    stdscr.move(height // 2 - 2, name_x_center)
     stdscr.refresh()
+    
+    # Show blinking cursor during delay
+    curses.curs_set(1)
+    
+    # Set non-blocking mode to flush any keystrokes during the delay
+    stdscr.nodelay(True)
+    
+    # Wait 1 second while flushing any keyboard input
+    start_time = time.time()
+    while time.time() - start_time < 1.0:
+        # Continuously flush the input buffer during the delay
+        while stdscr.getch() != curses.ERR:
+            pass
+        time.sleep(0.01)  # Small sleep to prevent CPU hogging
+    
+    # Now enable proper input mode
+    stdscr.nodelay(False)  # Turn off non-blocking mode
+    curses.echo()  # Echo input
+    stdscr.timeout(-1)  # Wait indefinitely for input
+    
+    # Collect name input
     name = stdscr.getstr(height // 2 - 2, name_x_center, 22).decode('utf-8').strip()  # Limit to 20 characters
     play_beep()  # Beep after name is entered
 
     stdscr.clear()
 
-    # Center the prompt for the quote input with character limit message
+    # Center the prompt for the quote input
     prompt_quote = "Say something:"
     quote_x_center = (width // 2) - (len(prompt_quote) // 2)
     stdscr.addstr(height // 2 - 4, quote_x_center, prompt_quote, curses.A_BOLD)
+    
+    # Position cursor and refresh
+    stdscr.move(height // 2 - 2, quote_x_center)
     stdscr.refresh()
+    
+    # Show blinking cursor
+    curses.curs_set(1)
+    
+    # Enable input mode for quote (no delay for the message field)
+    curses.echo()
+    stdscr.timeout(-1)  # Wait indefinitely for input
+    
+    # Collect quote input
     quote_text = stdscr.getstr(height // 2 - 2, quote_x_center, 30).decode('utf-8').strip()  # Limit to 32 characters
     
     curses.noecho()
@@ -374,7 +410,6 @@ def main(stdscr):
                 current_quote = None  # Reset to show a random quote after admin panel
                 break
             elif key != curses.ERR:  # Check if any other key was pressed
-                play_beep()
                 newly_added_quote = add_quote(stdscr, pending_quotes)
                 if newly_added_quote:
                     current_quote = newly_added_quote
