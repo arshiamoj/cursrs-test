@@ -146,9 +146,31 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
         title = "ADMIN PANEL - PENDING QUOTES"
         stdscr.addstr(1, (width // 2) - (len(title) // 2), title, curses.A_BOLD | curses.color_pair(4))
         
-        # Show pending quotes count
-        count_text = f"Pending Quotes: {len(pending_quotes)}"
-        stdscr.addstr(3, (width // 2) - (len(count_text) // 2), count_text, curses.color_pair(1))
+        # Show quotes counts
+        pending_count = f"Pending: {len(pending_quotes)}"
+        approved_count = f"Approved: {len(approved_quotes)}"
+        removed_count = f"Removed: {len(removed_quotes)}"
+        total_count = f"Total: {len(pending_quotes) + len(approved_quotes) + len(removed_quotes)}"
+        
+        # Display counts on line 3
+        counts_row = 3
+        padding = 2  # Space between counts
+        
+        # Calculate the total width needed for all counts
+        total_width = len(pending_count) + len(approved_count) + len(removed_count) + len(total_count) + (padding * 3)
+        start_x = (width // 2) - (total_width // 2)
+        
+        # Display each count with appropriate color
+        stdscr.addstr(counts_row, start_x, pending_count, curses.color_pair(1))
+        start_x += len(pending_count) + padding
+        
+        stdscr.addstr(counts_row, start_x, approved_count, curses.color_pair(3))
+        start_x += len(approved_count) + padding
+        
+        stdscr.addstr(counts_row, start_x, removed_count, curses.color_pair(4))
+        start_x += len(removed_count) + padding
+        
+        stdscr.addstr(counts_row, start_x, total_count, curses.A_BOLD | curses.color_pair(1))
         
         # No pending quotes
         if not pending_quotes:
@@ -193,6 +215,10 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
             if len(pending_quotes) > 1:
                 nav_text = f"Quote {current_index + 1} of {len(pending_quotes)}"
                 stdscr.addstr(box_start_y + 8, (width // 2) - (len(nav_text) // 2), nav_text, curses.color_pair(1))
+        
+        # Add instructions at the bottom
+        instructions = "ENTER: Approve | DEL: Remove | ESC: Exit"
+        stdscr.addstr(height - 2, (width // 2) - (len(instructions) // 2), instructions, curses.color_pair(1))
         
         stdscr.refresh()
         
