@@ -180,7 +180,7 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
                 stdscr.addstr(box_start_y + 8, (width // 2) - (len(nav_text) // 2), nav_text, curses.color_pair(1))
         
         # Add instructions at the bottom
-        instructions = "ENTER: Approve | DEL: Remove | ESC: Exit"
+        instructions = "PUP: Approve | PDOWN: Remove | ESC: Exit"
         stdscr.addstr(height - 2, (width // 2) - (len(instructions) // 2), instructions, curses.color_pair(1))
         
         # Display notification if active
@@ -205,14 +205,14 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
             current_index = (current_index - 1) % len(pending_quotes)
         elif key == curses.KEY_DOWN and pending_quotes:
             current_index = (current_index + 1) % len(pending_quotes)
-        elif key == 10 and pending_quotes:  # ENTER key
+        elif key == curses.KEY_PPAGE  and pending_quotes:  # ENTER key
             # Approve quote - move to approved quotes
             approved_quotes.append(pending_quotes.pop(current_index))
             save_quotes(approved_quotes, QUOTES_FILE)
             save_quotes(pending_quotes, PENDING_QUOTES_FILE)
             if current_index >= len(pending_quotes) and current_index > 0:
                 current_index = len(pending_quotes) - 1
-        elif (key == curses.KEY_DC or key == 127 or key == 8) and pending_quotes:  # DELETE or BACKSPACE key
+        elif (key == curses.KEY_NPAGE ) and pending_quotes:  # DELETE or BACKSPACE key
             # Reject quote - move to removed quotes
             removed_quotes.append(pending_quotes.pop(current_index))
             save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
