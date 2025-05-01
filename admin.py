@@ -247,6 +247,11 @@ def main(stdscr):
     # Call admin panel directly
     admin_panel(stdscr, pending_quotes, quotes, removed_quotes)
 
+    # Save all changes to files before exiting
+    save_quotes(quotes, QUOTES_FILE)
+    save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+    save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
+
 # No buzzer for this version
 HAS_BUZZER = False
 

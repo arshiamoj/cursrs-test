@@ -147,7 +147,7 @@ def play_error_beep():
             time.sleep(0.2)
             print("\a", end="", flush=True)
 
-def add_quote(stdscr, pending_quotes):
+def add_quote(stdscr, pending_quotes, approved_quotes, removed_quotes):
     # Setup to capture ESC key properly
     stdscr.keypad(True)
     
@@ -299,10 +299,19 @@ def add_quote(stdscr, pending_quotes):
     # Create and save the new quote
     if name and quote_text:
         new_quote = {"name": name, "quote": quote_text}
-        pending_quotes.append(new_quote)
-        save_quotes(pending_quotes, PENDING_QUOTES_FILE)
-        play_success_jingle()  # Play success jingle after quote is added
-        return new_quote  # Return the newly added quote
+        
+        # Check if the quote already exists in approved or removed quotes
+        quote_exists = False
+        for quote in approved_quotes + removed_quotes:
+            if quote["name"] == name and quote["quote"] == quote_text:
+                quote_exists = True
+                break
+                
+        if not quote_exists:
+            pending_quotes.append(new_quote)
+            save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+            play_success_jingle()  # Play success jingle after quote is added
+            return new_quote  # Return the newly added quote
     
     return None
 
@@ -605,7 +614,7 @@ def main(stdscr):
                 # Do nothing, but exit the loop to return to the main screen
                 break
             elif key != curses.ERR:  # Check if any other key was pressed
-                newly_added_quote = add_quote(stdscr, pending_quotes)
+                newly_added_quote = add_quote(stdscr, pending_quotes, quotes, removed_quotes)
                 if newly_added_quote:
                     current_quote = newly_added_quote
                     displayed_indices = []
