@@ -18,16 +18,7 @@ EXIT_APP = False
 # Detect if we're running on a Raspberry Pi
 IS_RASPBERRY_PI = platform.system() == "Linux" and os.path.exists("/sys/firmware/devicetree/base/model") and "raspberry pi" in open("/sys/firmware/devicetree/base/model").read().lower()
 
-# Only import gpiozero if we're on a Raspberry Pi
-if IS_RASPBERRY_PI:
-    try:
-        from gpiozero import PWMOutputDevice
-        buzzer = PWMOutputDevice(18)
-        HAS_BUZZER = True
-    except ImportError:
-        HAS_BUZZER = False
-else:
-    HAS_BUZZER = False
+
 
 def signal_handler(sig, frame):
     # Ignore Ctrl+C (SIGINT) - do nothing when it's pressed
