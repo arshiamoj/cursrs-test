@@ -61,34 +61,43 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
         # Check for file changes periodically
         current_time = time.time()
         if current_time - last_check_time >= refresh_interval:
-            # Reload the pending quotes
+            # Reload all quotes to ensure we have the latest state
             new_pending_quotes = load_quotes(PENDING_QUOTES_FILE)
             new_approved_quotes = load_quotes(QUOTES_FILE)
             new_removed_quotes = load_quotes(REMOVED_QUOTES_FILE)
             
-            # Check if there are new pending quotes
-            if len(new_pending_quotes) > last_pending_count:
-                # New quotes added!
-                pending_quotes = new_pending_quotes
+            # Filter out any pending quotes that have been processed in another instance
+            filtered_pending = []
+            for quote in new_pending_quotes:
+                # Skip quotes that are already in approved or removed lists
+                already_processed = False
+                for existing in new_approved_quotes + new_removed_quotes:
+                    if quote["name"] == existing["name"] and quote["quote"] == existing["quote"]:
+                        already_processed = True
+                        break
+                
+                if not already_processed:
+                    filtered_pending.append(quote)
+            
+            # Check if there are changes to pending quotes
+            if len(filtered_pending) != len(pending_quotes):
+                pending_quotes = filtered_pending
                 approved_quotes = new_approved_quotes
                 removed_quotes = new_removed_quotes
                 
-                # Show notification
-                notification_active = True
-                notification_start_time = current_time
+                # Show notification if new quotes were added
+                if len(filtered_pending) > last_pending_count:
+                    notification_active = True
+                    notification_start_time = current_time
                 
                 # If the current index is no longer valid, reset it
-                if current_index >= len(pending_quotes):
+                if pending_quotes and current_index >= len(pending_quotes):
                     current_index = len(pending_quotes) - 1
-            elif len(new_pending_quotes) != last_pending_count:
-                # The count changed (likely due to another admin approving/removing)
-                pending_quotes = new_pending_quotes
-                approved_quotes = new_approved_quotes
-                removed_quotes = new_removed_quotes
+                elif not pending_quotes:
+                    current_index = 0
                 
-                # If the current index is no longer valid, reset it
-                if current_index >= len(pending_quotes) and len(pending_quotes) > 0:
-                    current_index = len(pending_quotes) - 1
+                # Save the filtered pending quotes back to file to maintain consistency
+                save_quotes(filtered_pending, PENDING_QUOTES_FILE)
             
             last_pending_count = len(pending_quotes)
             last_check_time = current_time
@@ -187,7 +196,7 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
         
         stdscr.refresh()
         
-# Process keyboard input
+        # Process keyboard input
         key = stdscr.getch()
         
         if key == 27:  # ESC key
@@ -196,24 +205,25 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
             current_index = (current_index - 1) % len(pending_quotes)
         elif key == curses.KEY_DOWN and pending_quotes:
             current_index = (current_index + 1) % len(pending_quotes)
-        elif key == curses.KEY_PPAGE and pending_quotes:  # PAGE UP key
+        elif key == 10 and pending_quotes:  # ENTER key
             # Approve quote - move to approved quotes
             approved_quotes.append(pending_quotes.pop(current_index))
             save_quotes(approved_quotes, QUOTES_FILE)
             save_quotes(pending_quotes, PENDING_QUOTES_FILE)
             if current_index >= len(pending_quotes) and current_index > 0:
                 current_index = len(pending_quotes) - 1
-        elif key == curses.KEY_NPAGE and pending_quotes:  # PAGE DOWN key
+        elif (key == curses.KEY_DC or key == 127 or key == 8) and pending_quotes:  # DELETE or BACKSPACE key
             # Reject quote - move to removed quotes
             removed_quotes.append(pending_quotes.pop(current_index))
             save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
             save_quotes(pending_quotes, PENDING_QUOTES_FILE)
             if current_index >= len(pending_quotes) and current_index > 0:
                 current_index = len(pending_quotes) - 1
-        elif key == 41:  # Check for the exit combination (Shift+0)
+        elif check_exit_combination(key):  # Check for the exit combination (Shift+0)
             EXIT_APP = True
             break
 
+        
 def check_exit_combination(key):
     """Check if the key is the Shift+0 combination (ASCII 41 is ")") """
     return key == 41  # ASCII code for the ")" character (Shift+0)

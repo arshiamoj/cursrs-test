@@ -49,9 +49,33 @@ def load_quotes(file_path):
 def check_for_quote_updates(current_quotes):
     """Check if the quotes file has been modified and reload if needed"""
     new_quotes = load_quotes(QUOTES_FILE)
+    
+    # Also check for pending quotes that might have been approved by admin.py
+    pending_quotes = load_quotes(PENDING_QUOTES_FILE)
+    removed_quotes = load_quotes(REMOVED_QUOTES_FILE)
+    
+    # Filter out any pending quotes that are already in approved or removed lists
+    # This helps synchronize the state between the two running instances
+    filtered_pending = []
+    for quote in pending_quotes:
+        # Skip quotes that are already in approved or removed lists
+        already_processed = False
+        for existing in new_quotes + removed_quotes:
+            if quote["name"] == existing["name"] and quote["quote"] == existing["quote"]:
+                already_processed = True
+                break
+                
+        if not already_processed:
+            filtered_pending.append(quote)
+    
+    # Save the filtered pending quotes back to file
+    if len(filtered_pending) != len(pending_quotes):
+        save_quotes(filtered_pending, PENDING_QUOTES_FILE)
+    
     if len(new_quotes) != len(current_quotes):
         return new_quotes, True
     return current_quotes, False
+
 
 def save_quotes(quotes, file_path):
     with open(file_path, 'w') as f:
@@ -153,6 +177,10 @@ def add_quote(stdscr, pending_quotes, approved_quotes, removed_quotes):
     
     # Play beep first
     play_beep()
+    
+    # First reload all quotes to ensure we have the latest state
+    latest_approved_quotes = load_quotes(QUOTES_FILE)
+    latest_removed_quotes = load_quotes(REMOVED_QUOTES_FILE)
     
     # Prepare screen for input
     stdscr.clear()
@@ -301,8 +329,9 @@ def add_quote(stdscr, pending_quotes, approved_quotes, removed_quotes):
         new_quote = {"name": name, "quote": quote_text}
         
         # Check if the quote already exists in approved or removed quotes
+        # Using the latest loaded versions from files
         quote_exists = False
-        for quote in approved_quotes + removed_quotes + pending_quotes:
+        for quote in pending_quotes + latest_approved_quotes + latest_removed_quotes:
             if quote["name"] == name and quote["quote"] == quote_text:
                 quote_exists = True
                 break
@@ -314,6 +343,7 @@ def add_quote(stdscr, pending_quotes, approved_quotes, removed_quotes):
             return new_quote  # Return the newly added quote
     
     return None
+
 
 def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
     global EXIT_APP
