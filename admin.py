@@ -18,8 +18,6 @@ EXIT_APP = False
 # Detect if we're running on a Raspberry Pi
 IS_RASPBERRY_PI = platform.system() == "Linux" and os.path.exists("/sys/firmware/devicetree/base/model") and "raspberry pi" in open("/sys/firmware/devicetree/base/model").read().lower()
 
-
-
 def signal_handler(sig, frame):
     # Ignore Ctrl+C (SIGINT) - do nothing when it's pressed
     pass
@@ -49,10 +47,55 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
     stdscr.timeout(100)  # Non-blocking mode
     
     current_index = 0
+    last_pending_count = len(pending_quotes)
+    last_check_time = time.time()
+    refresh_interval = 2.0  # Check for new quotes every 2 seconds
+    notification_active = False
+    notification_start_time = 0
+    notification_duration = 2.0  # Show notification for 2 seconds
     
     while True:
         if EXIT_APP:
             break
+            
+        # Check for file changes periodically
+        current_time = time.time()
+        if current_time - last_check_time >= refresh_interval:
+            # Reload the pending quotes
+            new_pending_quotes = load_quotes(PENDING_QUOTES_FILE)
+            new_approved_quotes = load_quotes(QUOTES_FILE)
+            new_removed_quotes = load_quotes(REMOVED_QUOTES_FILE)
+            
+            # Check if there are new pending quotes
+            if len(new_pending_quotes) > last_pending_count:
+                # New quotes added!
+                pending_quotes = new_pending_quotes
+                approved_quotes = new_approved_quotes
+                removed_quotes = new_removed_quotes
+                
+                # Show notification
+                notification_active = True
+                notification_start_time = current_time
+                
+                # If the current index is no longer valid, reset it
+                if current_index >= len(pending_quotes):
+                    current_index = len(pending_quotes) - 1
+            elif len(new_pending_quotes) != last_pending_count:
+                # The count changed (likely due to another admin approving/removing)
+                pending_quotes = new_pending_quotes
+                approved_quotes = new_approved_quotes
+                removed_quotes = new_removed_quotes
+                
+                # If the current index is no longer valid, reset it
+                if current_index >= len(pending_quotes) and len(pending_quotes) > 0:
+                    current_index = len(pending_quotes) - 1
+            
+            last_pending_count = len(pending_quotes)
+            last_check_time = current_time
+        
+        # Clear notification after the duration expires
+        if notification_active and current_time - notification_start_time >= notification_duration:
+            notification_active = False
             
         stdscr.clear()
         height, width = stdscr.getmaxyx()
@@ -128,8 +171,19 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
                 stdscr.addstr(box_start_y + 8, (width // 2) - (len(nav_text) // 2), nav_text, curses.color_pair(1))
         
         # Add instructions at the bottom
-        instructions = "PAGE UP: Approve | PAGE DOWN: Remove | ESC: Exit"
+        instructions = "ENTER: Approve | DEL: Remove | ESC: Exit"
         stdscr.addstr(height - 2, (width // 2) - (len(instructions) // 2), instructions, curses.color_pair(1))
+        
+        # Display notification if active
+        if notification_active:
+            notification_msg = "New quotes detected!"
+            msg_x = (width // 2) - (len(notification_msg) // 2)
+            
+            # Draw a highlighted notification
+            for i in range(len(notification_msg) + 4):
+                stdscr.addch(5, msg_x - 2 + i, ' ', curses.color_pair(2))
+            
+            stdscr.addstr(5, msg_x, notification_msg, curses.color_pair(2) | curses.A_BOLD)
         
         stdscr.refresh()
         
@@ -142,14 +196,14 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
             current_index = (current_index - 1) % len(pending_quotes)
         elif key == curses.KEY_DOWN and pending_quotes:
             current_index = (current_index + 1) % len(pending_quotes)
-        elif key == curses.KEY_PPAGE and pending_quotes:  # PAGE UP key
+        elif key == 10 and pending_quotes:  # ENTER key
             # Approve quote - move to approved quotes
             approved_quotes.append(pending_quotes.pop(current_index))
             save_quotes(approved_quotes, QUOTES_FILE)
             save_quotes(pending_quotes, PENDING_QUOTES_FILE)
             if current_index >= len(pending_quotes) and current_index > 0:
                 current_index = len(pending_quotes) - 1
-        elif key == curses.KEY_NPAGE and pending_quotes:  # PAGE DOWN key
+        elif (key == curses.KEY_DC or key == 127 or key == 8) and pending_quotes:  # DELETE or BACKSPACE key
             # Reject quote - move to removed quotes
             removed_quotes.append(pending_quotes.pop(current_index))
             save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
@@ -173,7 +227,7 @@ def main(stdscr):
     # Initialize colors
     curses.start_color()
     curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)  # Main text
-    curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)  # Menu
+    curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)  # Menu/Notification
     curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Border
     curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)    # Admin panel title
 
@@ -193,10 +247,12 @@ def main(stdscr):
     # Call admin panel directly
     admin_panel(stdscr, pending_quotes, quotes, removed_quotes)
 
+# No buzzer for this version
+HAS_BUZZER = False
+
 def cleanup():
     """Clean up resources before exiting"""
-    if HAS_BUZZER:
-        buzzer.value = 0
+    pass  # No resources to clean up in this version
 
 # Ensure all required files exist
 def init_files():
@@ -216,14 +272,12 @@ if __name__ == "__main__":
     # Initialize files
     init_files()
     
-    # No startup message, just start directly
-    
     try:
         # Run the admin panel using curses
         curses.wrapper(main)
     except KeyboardInterrupt:
         pass
     finally:
-        cleanup()  # Make sure buzzer is turned off when the program exits
+        cleanup()
     
     print("Admin panel closed. Goodbye!")
