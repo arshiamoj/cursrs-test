@@ -46,6 +46,13 @@ def load_quotes(file_path):
             return json.loads(content)
     return []
 
+def check_for_quote_updates(current_quotes):
+    """Check if the quotes file has been modified and reload if needed"""
+    new_quotes = load_quotes(QUOTES_FILE)
+    if len(new_quotes) != len(current_quotes):
+        return new_quotes, True
+    return current_quotes, False
+
 def save_quotes(quotes, file_path):
     with open(file_path, 'w') as f:
         json.dump(quotes, f, indent=2)
@@ -443,6 +450,10 @@ def main(stdscr):
     curses.curs_set(0)  # Hide cursor
     stdscr.timeout(100)  # Non-blocking getch
 
+    # Add variables for quote file monitoring
+    last_check_time = time.time()
+    check_interval = 3  # Check for updates every 3 seconds
+
     curses.start_color()
     curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)  # Main text
     curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)  # Menu (changed from black on white to yellow on black)
@@ -475,6 +486,15 @@ def main(stdscr):
     blink_interval = 0.8  # Blink every half second
 
     while not EXIT_APP:
+        # Check for quote file updates
+        current_time = time.time()
+        if current_time - last_check_time >= check_interval:
+            quotes, was_updated = check_for_quote_updates(quotes)
+            if was_updated:
+                current_quote = None  # Reset to show a new quote
+                displayed_indices = []  # Reset displayed indices
+            last_check_time = current_time
+            
         stdscr.clear()
         height, width = stdscr.getmaxyx()
 
