@@ -3,11 +3,12 @@ import curses
 import json
 import os
 import time
+import pyfiglet
+import random
 import platform
 import subprocess
 import signal
 
-# File paths for quote storage
 QUOTES_FILE = "quotes.json"
 PENDING_QUOTES_FILE = "pending_quotes.json"
 REMOVED_QUOTES_FILE = "removed_quotes.json"
@@ -15,7 +16,7 @@ REMOVED_QUOTES_FILE = "removed_quotes.json"
 # Flag to control application exit
 EXIT_APP = False
 
-# Detect if we're running on a Raspberry Pi
+# Detect if we're running on a Raspberry Pi or another system
 IS_RASPBERRY_PI = platform.system() == "Linux" and os.path.exists("/sys/firmware/devicetree/base/model") and "raspberry pi" in open("/sys/firmware/devicetree/base/model").read().lower()
 
 # Only import gpiozero if we're on a Raspberry Pi
@@ -37,7 +38,6 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 def load_quotes(file_path):
-    """Load quotes from a JSON file."""
     if os.path.exists(file_path):
         with open(file_path, 'r') as f:
             content = f.read().strip()
@@ -47,12 +47,259 @@ def load_quotes(file_path):
     return []
 
 def save_quotes(quotes, file_path):
-    """Save quotes to a JSON file."""
     with open(file_path, 'w') as f:
         json.dump(quotes, f, indent=2)
 
+def play_success_jingle():
+    """Play a C major jingle when a quote is successfully added"""
+    if HAS_BUZZER:
+        # C Major mini jingle: C → E → G → C5
+        notes = [261, 329, 392, 523]  # C4, E4, G4, C5
+        
+        for note in notes:
+            # Play each note
+            buzzer.frequency = note
+            buzzer.value = 0.3
+            time.sleep(0.15)
+            buzzer.value = 0
+            time.sleep(0.03)
+    else:
+        # Use system beep on other platforms
+        if platform.system() == "Darwin":  # MacOS
+            # Use afplay (built-in on MacOS) or print character bell
+            subprocess.run(["osascript", "-e", "beep"])
+        elif platform.system() == "Windows":
+            # Windows - use winsound if available
+            try:
+                import winsound
+                for freq in [261, 329, 392, 523]:  # C4, E4, G4, C5
+                    winsound.Beep(freq, 150)  # Each note for 150ms
+                    time.sleep(0.03)
+            except ImportError:
+                # Fallback to ASCII bell
+                print("\a", end="", flush=True)
+        else:
+            # Linux/Unix without GPIO - use ASCII bell
+            print("\a", end="", flush=True)
+
+def play_beep():
+    """Play a beep sound using either GPIO buzzer or system beep"""
+    if HAS_BUZZER:
+        # Use the GPIO buzzer on Raspberry Pi
+        buzzer.frequency = 250  # Set frequency to 250Hz
+        buzzer.value = 0.2      # Set duty cycle to 20%
+        time.sleep(0.2)         # Play for 0.2 seconds
+        buzzer.value = 0        # Stop the sound
+    else:
+        # Use system beep on other platforms
+        if platform.system() == "Darwin":  # MacOS
+            # Use afplay (built-in on MacOS) or print character bell
+            subprocess.run(["osascript", "-e", "beep"])
+        elif platform.system() == "Windows":
+            # Windows - use winsound if available
+            try:
+                import winsound
+                winsound.Beep(250, 200)  # 250Hz for 200ms
+            except ImportError:
+                # Fallback to ASCII bell
+                print("\a", end="", flush=True)
+        else:
+            # Linux/Unix without GPIO - use ASCII bell
+            print("\a", end="", flush=True)
+
+def play_error_beep():
+    """Play an error beep sound when user reaches character limit"""
+    if HAS_BUZZER:
+        # Error sound pattern: high tone → low tone 
+        # First a short high-pitched beep
+        buzzer.frequency = 800  # Higher frequency for alert sound
+        buzzer.value = 0.6      # Louder
+        time.sleep(0.1)         # Very short duration
+        buzzer.value = 0        # Short pause
+        time.sleep(0.05)
+        
+    else:
+        # Use system beep on other platforms
+        if platform.system() == "Darwin":  # MacOS
+            subprocess.run(["osascript", "-e", "beep 2"])  # Use system beep
+        elif platform.system() == "Windows":
+            # Windows - use winsound if available
+            try:
+                import winsound
+                # Play two tones in sequence for the error sound
+                winsound.Beep(800, 100)  # High pitch, short
+                winsound.Beep(180, 300)  # Low pitch, longer
+            except ImportError:
+                # Fallback to ASCII bell
+                print("\a", end="", flush=True)
+                time.sleep(0.2)
+                print("\a", end="", flush=True)
+        else:
+            # Linux/Unix without GPIO - use ASCII bell twice
+            print("\a", end="", flush=True)
+            time.sleep(0.2)
+            print("\a", end="", flush=True)
+
+def add_quote(stdscr, pending_quotes):
+    # Setup to capture ESC key properly
+    stdscr.keypad(True)
+    
+    # Play beep first
+    play_beep()
+    
+    # Prepare screen for input
+    stdscr.clear()
+    height, width = stdscr.getmaxyx()
+    
+    # Set character limits
+    NAME_CHAR_LIMIT = 22
+    QUOTE_CHAR_LIMIT = 30
+    
+    # Center the prompt for the name input
+    prompt_name = "What's your name?"
+    name_x_center = (width // 2) - (len(prompt_name) // 2)
+    stdscr.addstr(height // 2 - 4, name_x_center, prompt_name, curses.A_BOLD)
+
+    # Position cursor where input will be collected
+    stdscr.move(height // 2 - 2, name_x_center)
+    stdscr.refresh()
+    
+    # Show blinking cursor during delay
+    curses.curs_set(1)
+    
+    # Set non-blocking mode to flush any keystrokes during the delay
+    stdscr.nodelay(True)
+    
+    # Wait 1 second while flushing any keyboard input
+    start_time = time.time()
+    while time.time() - start_time < 1.0:
+        # Continuously flush the input buffer during the delay
+        while stdscr.getch() != curses.ERR:
+            pass
+        time.sleep(0.01)  # Small sleep to prevent CPU hogging
+    
+    # Now setup for name input with 30-second timeout
+    curses.curs_set(1)  # Show cursor
+    stdscr.nodelay(False)  # Turn off non-blocking mode
+    stdscr.timeout(30000)  # 30-second timeout (30000 milliseconds)
+    
+    # Prepare for name input
+    name = ""
+    curses.noecho()  # Don't automatically echo input
+    
+    name_x_pos = name_x_center
+    
+    # Check for ESC and handle character-by-character input with limit check
+    while True:
+        ch = stdscr.getch()
+        
+        if ch == curses.ERR:  # Timeout occurred
+            curses.curs_set(0)  # Hide cursor again
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        elif ch == 27:  # ESC key
+            curses.curs_set(0)  # Hide cursor again
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        elif ch == 10:  # Enter key
+            break
+        elif ch == curses.KEY_BACKSPACE or ch == 127 or ch == 8:
+            if name:  # If there's text to delete
+                name = name[:-1]
+                # Clear line and redraw
+                stdscr.addstr(height // 2 - 2, name_x_center, " " * NAME_CHAR_LIMIT)
+                stdscr.addstr(height // 2 - 2, name_x_center, name)
+                stdscr.move(height // 2 - 2, name_x_center + len(name))
+        elif 32 <= ch <= 126:  # Printable ASCII characters
+            if len(name) < NAME_CHAR_LIMIT:
+                name += chr(ch)
+                stdscr.addch(height // 2 - 2, name_x_center + len(name) - 1, ch)
+            else:
+                # Play error beep when limit is reached
+                play_error_beep()
+        
+        stdscr.refresh()
+    
+    # If no actual content was entered, return to main screen
+    if not name:
+        curses.curs_set(0)  # Hide cursor again
+        stdscr.timeout(100)  # Return to non-blocking mode
+        return None
+    
+    # Play beep after name is entered
+    play_beep()
+
+    # Prepare for quote input
+    stdscr.clear()
+
+    # Center the prompt for the quote input
+    prompt_quote = "Say something:"
+    quote_x_center = (width // 2) - (len(prompt_quote) // 2)
+    stdscr.addstr(height // 2 - 4, quote_x_center, prompt_quote, curses.A_BOLD)
+    
+    # Position cursor and refresh
+    stdscr.move(height // 2 - 2, quote_x_center)
+    stdscr.refresh()
+    
+    # Show blinking cursor
+    curses.curs_set(1)
+    
+    # Set up 30-second timeout for quote input too
+    stdscr.timeout(30000)  # 30-second timeout (30000 milliseconds)
+    
+    # Enable input mode for quote
+    quote_text = ""
+    
+    # Handle character-by-character input with limit check for quote
+    while True:
+        ch = stdscr.getch()
+        
+        if ch == curses.ERR:  # Timeout occurred
+            curses.curs_set(0)  # Hide cursor again
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        elif ch == 27:  # ESC key
+            curses.curs_set(0)  # Hide cursor again
+            stdscr.timeout(100)  # Return to non-blocking mode
+            return None
+        elif ch == 10:  # Enter key
+            break
+        elif ch == curses.KEY_BACKSPACE or ch == 127 or ch == 8:
+            if quote_text:  # If there's text to delete
+                quote_text = quote_text[:-1]
+                # Clear line and redraw
+                stdscr.addstr(height // 2 - 2, quote_x_center, " " * QUOTE_CHAR_LIMIT)
+                stdscr.addstr(height // 2 - 2, quote_x_center, quote_text)
+                stdscr.move(height // 2 - 2, quote_x_center + len(quote_text))
+        elif 32 <= ch <= 126:  # Printable ASCII characters
+            if len(quote_text) < QUOTE_CHAR_LIMIT:
+                quote_text += chr(ch)
+                stdscr.addch(height // 2 - 2, quote_x_center + len(quote_text) - 1, ch)
+            else:
+                # Play error beep when limit is reached
+                play_error_beep()
+        
+        stdscr.refresh()
+    
+    # Reset terminal modes
+    curses.curs_set(0)  # Hide cursor again
+    stdscr.timeout(100)  # Return to non-blocking mode
+    
+    # If no actual content was entered, return to main screen
+    if not quote_text:
+        return None
+
+    # Create and save the new quote
+    if name and quote_text:
+        new_quote = {"name": name, "quote": quote_text}
+        pending_quotes.append(new_quote)
+        save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+        play_success_jingle()  # Play success jingle after quote is added
+        return new_quote  # Return the newly added quote
+    
+    return None
+
 def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
-    """Run the admin panel interface for quote management."""
     global EXIT_APP
     curses.curs_set(0)  # Hide cursor
     stdscr.timeout(100)  # Non-blocking mode
@@ -137,7 +384,7 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
                 stdscr.addstr(box_start_y + 8, (width // 2) - (len(nav_text) // 2), nav_text, curses.color_pair(1))
         
         # Add instructions at the bottom
-        instructions = "PAGE UP: Approve | PAGE DOWN: Remove | ESC: Exit"
+        instructions = "ENTER: Approve | DEL: Remove | ESC: Exit"
         stdscr.addstr(height - 2, (width // 2) - (len(instructions) // 2), instructions, curses.color_pair(1))
         
         stdscr.refresh()
@@ -149,40 +396,56 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
             break
         elif key == curses.KEY_UP and pending_quotes:
             current_index = (current_index - 1) % len(pending_quotes)
+            # Removed beep for admin panel navigation
         elif key == curses.KEY_DOWN and pending_quotes:
             current_index = (current_index + 1) % len(pending_quotes)
-        elif key == curses.KEY_PPAGE and pending_quotes:  # PAGE UP key
+            # Removed beep for admin panel navigation
+        elif key == 10 and pending_quotes:  # ENTER key
             # Approve quote - move to approved quotes
             approved_quotes.append(pending_quotes.pop(current_index))
             save_quotes(approved_quotes, QUOTES_FILE)
             save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+            # Removed beep for quote approval
             if current_index >= len(pending_quotes) and current_index > 0:
                 current_index = len(pending_quotes) - 1
-        elif key == curses.KEY_NPAGE and pending_quotes:  # PAGE DOWN key
+        elif (key == curses.KEY_DC or key == 127 or key == 8) and pending_quotes:  # DELETE or BACKSPACE key
             # Reject quote - move to removed quotes
             removed_quotes.append(pending_quotes.pop(current_index))
             save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
             save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+            # Removed beep for quote rejection
             if current_index >= len(pending_quotes) and current_index > 0:
                 current_index = len(pending_quotes) - 1
-        elif key == 41:  # Check for the exit combination (Shift+0)
+        elif check_exit_combination(key):  # Check for the exit combination (Shift+0)
             EXIT_APP = True
             break
+
+def typewriter_effect(stdscr, y, text, color_pair, center_x):
+    for i, ch in enumerate(text):
+        stdscr.addstr(y, center_x + i, ch, color_pair | curses.A_BOLD)
+        stdscr.refresh()
+        time.sleep(0.03)
+
+def draw_menu(stdscr, width, height):
+    """Draw the menu with manually implemented blinking effect"""
+    # Add copyright notice (non-blinking)
+    copyright_text = "© Retro Mowz"
+    stdscr.addstr(height - 1, (width // 2) - (len(copyright_text) // 2), copyright_text, curses.color_pair(1))
+    
+    # Note: The blinking effect for "Press any key to add a quote" is now handled in the main loop
 
 def check_exit_combination(key):
     """Check if the key is the Shift+0 combination (ASCII 41 is ")") """
     return key == 41  # ASCII code for the ")" character (Shift+0)
 
 def main(stdscr):
-    """Main function to run the admin panel."""
     global EXIT_APP
     curses.curs_set(0)  # Hide cursor
     stdscr.timeout(100)  # Non-blocking getch
 
-    # Initialize colors
     curses.start_color()
     curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)  # Main text
-    curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)  # Menu
+    curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)  # Menu (changed from black on white to yellow on black)
     curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Border
     curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)    # Admin panel title
 
@@ -194,13 +457,143 @@ def main(stdscr):
     pending_quotes = load_quotes(PENDING_QUOTES_FILE)
     removed_quotes = load_quotes(REMOVED_QUOTES_FILE)
     
-    # Ensure quotes file exists and has at least one quote
     if not quotes:
         quotes = [{"name": "System", "quote": "Welcome to the Retro Wall!"}]
-        save_quotes(quotes, QUOTES_FILE)
 
-    # Call admin panel directly
-    admin_panel(stdscr, pending_quotes, quotes, removed_quotes)
+    ascii_title = pyfiglet.figlet_format("Retro Wall", font="small")  # Using the "small" font
+    ascii_title_lines = ascii_title.splitlines()
+
+    displayed_indices = []
+    current_quote = None
+
+    vertical_space_before_title = 2  # Number of empty lines before the title
+    
+    # Variables for manual blinking
+    footer = "Press any key to add a quote"
+    footer_blink = True
+    last_blink_time = time.time()
+    blink_interval = 0.8  # Blink every half second
+
+    while not EXIT_APP:
+        stdscr.clear()
+        height, width = stdscr.getmaxyx()
+
+        # Draw ASCII Title (with added space)
+        for i, line in enumerate(ascii_title_lines):
+            title_y = i + vertical_space_before_title
+            if title_y >= height - 4:  # Leave space for border
+                break
+            stdscr.addstr(title_y, (width // 2) - (len(line) // 2), line, curses.color_pair(1) | curses.A_BOLD)
+
+        # Calculate border position based on the new title position
+        border_top_y = len(ascii_title_lines) + vertical_space_before_title + 1  # Adjusted for space
+
+        # Draw the thicker border
+        for x in range(2, width - 2):  # Top and bottom horizontal border
+            stdscr.addch(border_top_y, x, curses.ACS_HLINE, curses.color_pair(3))  # Top border
+            stdscr.addch(height - 4, x, curses.ACS_HLINE, curses.color_pair(3))  # Bottom border
+
+        # Vertical borders (thicker)
+        for y in range(border_top_y, height - 3):  # Left and right vertical borders
+            stdscr.addch(y, 2, curses.ACS_VLINE, curses.color_pair(3))  # Left border
+            stdscr.addch(y, width - 3, curses.ACS_VLINE, curses.color_pair(3))  # Right border
+
+        # Corners (to complete the thick border)
+        stdscr.addch(border_top_y, 2, curses.ACS_ULCORNER, curses.color_pair(3))
+        stdscr.addch(border_top_y, width-3, curses.ACS_URCORNER, curses.color_pair(3))
+        stdscr.addch(height-4, 2, curses.ACS_LLCORNER, curses.color_pair(3))
+        stdscr.addch(height-4, width-3, curses.ACS_LRCORNER, curses.color_pair(3))
+
+        # Draw Menu with manual blinking effect
+        copyright_text = "© Retro Mowz"
+        stdscr.addstr(height - 1, (width // 2) - (len(copyright_text) // 2), copyright_text, curses.color_pair(1))
+        
+        # Draw blinking footer
+        current_time = time.time()
+        if current_time - last_blink_time >= blink_interval:
+            footer_blink = not footer_blink
+            last_blink_time = current_time
+            
+        if footer_blink:
+            stdscr.addstr(height - 3, (width // 2) - (len(footer) // 2), footer, curses.color_pair(2) | curses.A_BOLD)
+
+        if not quotes:
+            current_quote = {"name": "System", "quote": "No quotes available. Add some!"}
+        elif current_quote is None:
+            available_indices = [i for i in range(len(quotes)) if i not in displayed_indices]
+            if not available_indices:
+                displayed_indices = []
+                available_indices = list(range(len(quotes)))
+            if available_indices:
+                chosen_index = random.choice(available_indices)
+                current_quote = quotes[chosen_index]
+                displayed_indices.append(chosen_index)
+
+        if current_quote:
+            # Centering the content vertically between the ASCII art and the border
+            ascii_end_y = border_top_y
+            menu_start_y = height - 3
+            available_space = menu_start_y - ascii_end_y
+            center_y = ascii_end_y + (available_space // 2)
+
+            quote_y = center_y - 1
+            name_y = center_y + 1
+
+            # Center X positions
+            quote_x_center = (width // 2) - (len(current_quote["quote"]) // 2)
+            name_line = f"- {current_quote['name']} -"
+            name_x_center = (width // 2) - (len(name_line) // 2)
+
+            # Typing effect for quote
+            typewriter_effect(stdscr, quote_y, current_quote["quote"], curses.color_pair(1), quote_x_center)
+
+            # After typing, draw name normally
+            stdscr.addstr(name_y, name_x_center, name_line, curses.color_pair(1) | curses.A_BOLD)
+
+        stdscr.refresh()
+
+        # Wait 5 seconds while listening for keys
+        start_time = time.time()
+        newly_added_quote = None
+        while time.time() - start_time < 5 and not EXIT_APP:
+            key = stdscr.getch()
+            
+            # Check if it's time to update the blink state
+            current_time = time.time()
+            if current_time - last_blink_time >= blink_interval:
+                footer_blink = not footer_blink
+                last_blink_time = current_time
+                
+                # Redraw just the blinking text (not the entire screen)
+                if footer_blink:
+                    stdscr.addstr(height - 3, (width // 2) - (len(footer) // 2), footer, curses.color_pair(2) | curses.A_BOLD)
+                else:
+                    # Clear the line where the footer was
+                    stdscr.addstr(height - 3, (width // 2) - (len(footer) // 2), " " * len(footer))
+                
+                stdscr.refresh()
+            
+            if check_exit_combination(key):  # Check if it's the exit combination (Shift+0)
+                EXIT_APP = True
+                break
+            elif key == 16:  # CTRL+P (ASCII 16 is DLE, which is what CTRL+P sends)
+                # No beep when entering admin panel
+                admin_panel(stdscr, pending_quotes, quotes, removed_quotes)
+                current_quote = None  # Reset to show a random quote after admin panel
+                break
+            elif key == 27:  # ESC key
+                # Do nothing, but exit the loop to return to the main screen
+                break
+            elif key != curses.ERR:  # Check if any other key was pressed
+                newly_added_quote = add_quote(stdscr, pending_quotes)
+                if newly_added_quote:
+                    current_quote = newly_added_quote
+                    displayed_indices = []
+                break
+            time.sleep(0.1)
+
+        if newly_added_quote is None and key != 16:  # Only reset if we didn't open the admin panel
+            current_quote = None
 
 def cleanup():
     """Clean up resources before exiting"""
@@ -208,31 +601,19 @@ def cleanup():
         buzzer.value = 0
 
 # Ensure all required files exist
-def init_files():
-    if not os.path.exists(QUOTES_FILE):
-        with open(QUOTES_FILE, 'w') as f:
-            json.dump([], f)
+if not os.path.exists(QUOTES_FILE):
+    with open(QUOTES_FILE, 'w') as f:
+        json.dump([], f)
 
-    if not os.path.exists(PENDING_QUOTES_FILE):
-        with open(PENDING_QUOTES_FILE, 'w') as f:
-            json.dump([], f)
+if not os.path.exists(PENDING_QUOTES_FILE):
+    with open(PENDING_QUOTES_FILE, 'w') as f:
+        json.dump([], f)
 
-    if not os.path.exists(REMOVED_QUOTES_FILE):
-        with open(REMOVED_QUOTES_FILE, 'w') as f:
-            json.dump([], f)
+if not os.path.exists(REMOVED_QUOTES_FILE):
+    with open(REMOVED_QUOTES_FILE, 'w') as f:
+        json.dump([], f)
 
-if __name__ == "__main__":
-    # Initialize files
-    init_files()
-    
-    # No startup message, just start directly
-    
-    try:
-        # Run the admin panel using curses
-        curses.wrapper(main)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        cleanup()  # Make sure buzzer is turned off when the program exits
-    
-    print("Admin panel closed. Goodbye!")
+try:
+    curses.wrapper(main)
+finally:
+    cleanup()  # Make sure buzzer is turned off when the program exits
