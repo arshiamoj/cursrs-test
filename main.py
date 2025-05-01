@@ -302,7 +302,7 @@ def add_quote(stdscr, pending_quotes, approved_quotes, removed_quotes):
         
         # Check if the quote already exists in approved or removed quotes
         quote_exists = False
-        for quote in approved_quotes + removed_quotes:
+        for quote in approved_quotes + removed_quotes + pending_quotes:
             if quote["name"] == name and quote["quote"] == quote_text:
                 quote_exists = True
                 break
