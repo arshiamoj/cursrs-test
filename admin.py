@@ -187,7 +187,7 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
         
         stdscr.refresh()
         
-        # Process keyboard input
+# Process keyboard input
         key = stdscr.getch()
         
         if key == 27:  # ESC key
@@ -196,14 +196,14 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
             current_index = (current_index - 1) % len(pending_quotes)
         elif key == curses.KEY_DOWN and pending_quotes:
             current_index = (current_index + 1) % len(pending_quotes)
-        elif key == 10 and pending_quotes:  # ENTER key
+        elif key == curses.KEY_PPAGE and pending_quotes:  # PAGE UP key
             # Approve quote - move to approved quotes
             approved_quotes.append(pending_quotes.pop(current_index))
             save_quotes(approved_quotes, QUOTES_FILE)
             save_quotes(pending_quotes, PENDING_QUOTES_FILE)
             if current_index >= len(pending_quotes) and current_index > 0:
                 current_index = len(pending_quotes) - 1
-        elif (key == curses.KEY_DC or key == 127 or key == 8) and pending_quotes:  # DELETE or BACKSPACE key
+        elif key == curses.KEY_NPAGE and pending_quotes:  # PAGE DOWN key
             # Reject quote - move to removed quotes
             removed_quotes.append(pending_quotes.pop(current_index))
             save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
