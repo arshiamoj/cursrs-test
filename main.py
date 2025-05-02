@@ -349,95 +349,107 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
     global EXIT_APP
     curses.curs_set(0)  # Hide cursor
     stdscr.timeout(100)  # Non-blocking mode
-    
+
     current_index = 0
-    
+
     while True:
+        # Reload quotes every time the admin panel is entered
+        pending_quotes = load_quotes(PENDING_QUOTES_FILE)
+        approved_quotes = load_quotes(QUOTES_FILE)
+        removed_quotes = load_quotes(REMOVED_QUOTES_FILE)
+
+        # Make sure current_index is still valid after reloading
+        if pending_quotes and current_index >= len(pending_quotes):
+            current_index = max(0, len(pending_quotes) - 1)
+
         if EXIT_APP:
             break
-            
+
         stdscr.clear()
         height, width = stdscr.getmaxyx()
-        
+
         # Draw title
         title = "ADMIN PANEL - PENDING QUOTES"
         stdscr.addstr(1, (width // 2) - (len(title) // 2), title, curses.A_BOLD | curses.color_pair(4))
-        
+
         # Show quotes counts
         pending_count = f"Pending: {len(pending_quotes)}"
         approved_count = f"Approved: {len(approved_quotes)}"
         removed_count = f"Removed: {len(removed_quotes)}"
-        
+
         # Display counts on row 3
         counts_row = 3
         padding = 4  # Space between counts
-        
+
         # Calculate the total width needed for the three main counts
         three_counts_width = len(pending_count) + len(approved_count) + len(removed_count) + (padding * 2)
         start_x = (width // 2) - (three_counts_width // 2)
-        
+
         # Display each count with appropriate color
         stdscr.addstr(counts_row, start_x, pending_count, curses.color_pair(1))
         start_x += len(pending_count) + padding
-        
+
         stdscr.addstr(counts_row, start_x, approved_count, curses.color_pair(3))
         start_x += len(approved_count) + padding
-        
+
         stdscr.addstr(counts_row, start_x, removed_count, curses.color_pair(4))
-        
+
         # No pending quotes
         if not pending_quotes:
             no_quotes_msg = "No pending quotes available"
             stdscr.addstr(height // 2, (width // 2) - (len(no_quotes_msg) // 2), no_quotes_msg, curses.color_pair(1))
         else:
             # Display current quote
-            quote = pending_quotes[current_index]
-            
-            # Draw quote in a box
-            box_width = min(width - 10, max(len(quote["quote"]), len(quote["name"])) + 10)
-            box_start_x = (width // 2) - (box_width // 2)
-            box_start_y = height // 2 - 4
-            
-            # Draw border
-            for i in range(box_width):
-                stdscr.addch(box_start_y, box_start_x + i, curses.ACS_HLINE, curses.color_pair(3))
-                stdscr.addch(box_start_y + 6, box_start_x + i, curses.ACS_HLINE, curses.color_pair(3))
-            
-            for i in range(7):
-                stdscr.addch(box_start_y + i, box_start_x, curses.ACS_VLINE, curses.color_pair(3))
-                stdscr.addch(box_start_y + i, box_start_x + box_width - 1, curses.ACS_VLINE, curses.color_pair(3))
-            
-            # Corners
-            stdscr.addch(box_start_y, box_start_x, curses.ACS_ULCORNER, curses.color_pair(3))
-            stdscr.addch(box_start_y, box_start_x + box_width - 1, curses.ACS_URCORNER, curses.color_pair(3))
-            stdscr.addch(box_start_y + 6, box_start_x, curses.ACS_LLCORNER, curses.color_pair(3))
-            stdscr.addch(box_start_y + 6, box_start_x + box_width - 1, curses.ACS_LRCORNER, curses.color_pair(3))
-            
-            # Quote content
-            quote_str = quote["quote"]
-            if len(quote_str) > box_width - 6:
-                quote_str = quote_str[:box_width - 9] + "..."
-            
-            name_str = f"- {quote['name']} -"
-            
-            # Display quote and name
-            stdscr.addstr(box_start_y + 2, (width // 2) - (len(quote_str) // 2), quote_str, curses.color_pair(1))
-            stdscr.addstr(box_start_y + 4, (width // 2) - (len(name_str) // 2), name_str, curses.color_pair(1))
-            
-            # Show navigation indicator
-            if len(pending_quotes) > 1:
-                nav_text = f"Quote {current_index + 1} of {len(pending_quotes)}"
-                stdscr.addstr(box_start_y + 8, (width // 2) - (len(nav_text) // 2), nav_text, curses.color_pair(1))
-        
+            if current_index < len(pending_quotes):
+                quote = pending_quotes[current_index]
+
+                # Draw quote in a box
+                box_width = min(width - 10, max(len(quote["quote"]), len(quote["name"])) + 10)
+                box_start_x = (width // 2) - (box_width // 2)
+                box_start_y = height // 2 - 4
+
+                # Draw border
+                for i in range(box_width):
+                    stdscr.addch(box_start_y, box_start_x + i, curses.ACS_HLINE, curses.color_pair(3))
+                    stdscr.addch(box_start_y + 6, box_start_x + i, curses.ACS_HLINE, curses.color_pair(3))
+
+                for i in range(7):
+                    stdscr.addch(box_start_y + i, box_start_x, curses.ACS_VLINE, curses.color_pair(3))
+                    stdscr.addch(box_start_y + i, box_start_x + box_width - 1, curses.ACS_VLINE, curses.color_pair(3))
+
+                # Corners
+                stdscr.addch(box_start_y, box_start_x, curses.ACS_ULCORNER, curses.color_pair(3))
+                stdscr.addch(box_start_y, box_start_x + box_width - 1, curses.ACS_URCORNER, curses.color_pair(3))
+                stdscr.addch(box_start_y + 6, box_start_x, curses.ACS_LLCORNER, curses.color_pair(3))
+                stdscr.addch(box_start_y + 6, box_start_x + box_width - 1, curses.ACS_LRCORNER, curses.color_pair(3))
+
+                # Quote content
+                quote_str = quote["quote"]
+                if len(quote_str) > box_width - 6:
+                    quote_str = quote_str[:box_width - 9] + "..."
+
+                name_str = f"- {quote['name']} -"
+
+                # Display quote and name
+                stdscr.addstr(box_start_y + 2, (width // 2) - (len(quote_str) // 2), quote_str, curses.color_pair(1))
+                stdscr.addstr(box_start_y + 4, (width // 2) - (len(name_str) // 2), name_str, curses.color_pair(1))
+
+                # Show navigation indicator
+                if len(pending_quotes) > 1:
+                    nav_text = f"Quote {current_index + 1} of {len(pending_quotes)}"
+                    stdscr.addstr(box_start_y + 8, (width // 2) - (len(nav_text) // 2), nav_text, curses.color_pair(1))
+            else:
+                current_index = 0 # Reset index if it's out of bounds after reloading
+
         # Add instructions at the bottom
         instructions = "ENTER: Approve | DEL: Remove | ESC: Exit"
         stdscr.addstr(height - 2, (width // 2) - (len(instructions) // 2), instructions, curses.color_pair(1))
-        
+
         stdscr.refresh()
-        
+
         # Process keyboard input
         key = stdscr.getch()
-        
+
         if key == 27:  # ESC key
             break
         elif key == curses.KEY_UP and pending_quotes:
@@ -448,24 +460,31 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
             # Removed beep for admin panel navigation
         elif key == 10 and pending_quotes:  # ENTER key
             # Approve quote - move to approved quotes
-            approved_quotes.append(pending_quotes.pop(current_index))
-            save_quotes(approved_quotes, QUOTES_FILE)
-            save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+            if current_index < len(pending_quotes):
+                approved_quotes.append(pending_quotes.pop(current_index))
+                save_quotes(approved_quotes, QUOTES_FILE)
+                save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+                if current_index >= len(pending_quotes) and len(pending_quotes) > 0:
+                    current_index = len(pending_quotes) - 1
+                elif not pending_quotes:
+                    current_index = 0
             # Removed beep for quote approval
-            if current_index >= len(pending_quotes) and current_index > 0:
-                current_index = len(pending_quotes) - 1
         elif (key == curses.KEY_DC or key == 127 or key == 8) and pending_quotes:  # DELETE or BACKSPACE key
             # Reject quote - move to removed quotes
-            removed_quotes.append(pending_quotes.pop(current_index))
-            save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
-            save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+            if current_index < len(pending_quotes):
+                removed_quotes.append(pending_quotes.pop(current_index))
+                save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
+                save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+                if current_index >= len(pending_quotes) and len(pending_quotes) > 0:
+                    current_index = len(pending_quotes) - 1
+                elif not pending_quotes:
+                    current_index = 0
             # Removed beep for quote rejection
-            if current_index >= len(pending_quotes) and current_index > 0:
-                current_index = len(pending_quotes) - 1
         elif check_exit_combination(key):  # Check for the exit combination (Shift+0)
             EXIT_APP = True
             break
 
+        
 def typewriter_effect(stdscr, y, text, color_pair, center_x):
     for i, ch in enumerate(text):
         stdscr.addstr(y, center_x + i, ch, color_pair | curses.A_BOLD)
