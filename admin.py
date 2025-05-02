@@ -171,7 +171,7 @@ def admin_panel(stdscr):
             current_index = (current_index - 1) % len(pending_quotes)
         elif key == curses.KEY_DOWN and pending_quotes:
             current_index = (current_index + 1) % len(pending_quotes)
-        elif key == curses.KEY_PPAGE and pending_quotes:  # PAGE UP key - approve
+        elif key == ord('1') and pending_quotes:  # '1' key - approve
             # Approve quote - move to approved quotes
             approved_quotes.append(pending_quotes.pop(current_index))
             save_quotes(approved_quotes, QUOTES_FILE)
@@ -179,7 +179,7 @@ def admin_panel(stdscr):
             
             if current_index >= len(pending_quotes) and current_index > 0:
                 current_index = len(pending_quotes) - 1
-        elif key == curses.KEY_NPAGE and pending_quotes:  # PAGE DOWN key - remove
+        elif key == ord('0') and pending_quotes:  # '0' key - delete
             # Reject quote - move to removed quotes
             removed_quotes.append(pending_quotes.pop(current_index))
             save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
