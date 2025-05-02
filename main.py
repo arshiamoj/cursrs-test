@@ -216,7 +216,7 @@ def add_quote(stdscr, pending_quotes, approved_quotes, removed_quotes):
     # Now setup for name input with 30-second timeout
     curses.curs_set(1)  # Show cursor
     stdscr.nodelay(False)  # Turn off non-blocking mode
-    stdscr.timeout(30000)  # 30-second timeout (30000 milliseconds)
+    stdscr.timeout(10000)  # 30-second timeout (10000 milliseconds)
 
     # Prepare for name input
     name = ""
@@ -280,7 +280,7 @@ def add_quote(stdscr, pending_quotes, approved_quotes, removed_quotes):
     curses.curs_set(1)
 
     # Set up 30-second timeout for quote input too
-    stdscr.timeout(30000)  # 30-second timeout (30000 milliseconds)
+    stdscr.timeout(15000)  # 30-second timeout (15000 milliseconds)
 
     # Enable input mode for quote
     quote_text = ""
@@ -351,6 +351,8 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
     stdscr.timeout(100)  # Non-blocking mode
 
     current_index = 0
+    last_activity_time = time.time()
+    timeout_duration = 10  # seconds
 
     while True:
         # Reload quotes every time the admin panel is entered
@@ -447,43 +449,46 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
 
         stdscr.refresh()
 
-        # Process keyboard input
+        # Process keyboard input with timeout
+        stdscr.timeout(100) # Set a short timeout for getch
         key = stdscr.getch()
+        stdscr.timeout(-1) # Reset to blocking
 
-        if key == 27:  # ESC key
-            break
-        elif key == curses.KEY_UP and pending_quotes:
-            current_index = (current_index - 1) % len(pending_quotes)
-            # Removed beep for admin panel navigation
-        elif key == curses.KEY_DOWN and pending_quotes:
-            current_index = (current_index + 1) % len(pending_quotes)
-            # Removed beep for admin panel navigation
-        elif key == 10 and pending_quotes:  # ENTER key
-            # Approve quote - move to approved quotes
-            if current_index < len(pending_quotes):
-                approved_quotes.append(pending_quotes.pop(current_index))
-                save_quotes(approved_quotes, QUOTES_FILE)
-                save_quotes(pending_quotes, PENDING_QUOTES_FILE)
-                if current_index >= len(pending_quotes) and len(pending_quotes) > 0:
-                    current_index = len(pending_quotes) - 1
-                elif not pending_quotes:
-                    current_index = 0
-            # Removed beep for quote approval
-        elif (key == curses.KEY_DC or key == 127 or key == 8) and pending_quotes:  # DELETE or BACKSPACE key
-            # Reject quote - move to removed quotes
-            if current_index < len(pending_quotes):
-                removed_quotes.append(pending_quotes.pop(current_index))
-                save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
-                save_quotes(pending_quotes, PENDING_QUOTES_FILE)
-                if current_index >= len(pending_quotes) and len(pending_quotes) > 0:
-                    current_index = len(pending_quotes) - 1
-                elif not pending_quotes:
-                    current_index = 0
-            # Removed beep for quote rejection
-        elif check_exit_combination(key):  # Check for the exit combination (Shift+0)
-            EXIT_APP = True
-            break
-
+        if key != curses.ERR:
+            last_activity_time = time.time() # Update last activity time
+            if key == 27:  # ESC key
+                break
+            elif key == curses.KEY_UP and pending_quotes:
+                current_index = (current_index - 1) % len(pending_quotes)
+            elif key == curses.KEY_DOWN and pending_quotes:
+                current_index = (current_index + 1) % len(pending_quotes)
+            elif key == 10 and pending_quotes:  # ENTER key
+                # Approve quote - move to approved quotes
+                if current_index < len(pending_quotes):
+                    approved_quotes.append(pending_quotes.pop(current_index))
+                    save_quotes(approved_quotes, QUOTES_FILE)
+                    save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+                    if current_index >= len(pending_quotes) and len(pending_quotes) > 0:
+                        current_index = len(pending_quotes) - 1
+                    elif not pending_quotes:
+                        current_index = 0
+            elif (key == curses.KEY_DC or key == 127 or key == 8) and pending_quotes:  # DELETE or BACKSPACE key
+                # Reject quote - move to removed quotes
+                if current_index < len(pending_quotes):
+                    removed_quotes.append(pending_quotes.pop(current_index))
+                    save_quotes(removed_quotes, REMOVED_QUOTES_FILE)
+                    save_quotes(pending_quotes, PENDING_QUOTES_FILE)
+                    if current_index >= len(pending_quotes) and len(pending_quotes) > 0:
+                        current_index = len(pending_quotes) - 1
+                    elif not pending_quotes:
+                        current_index = 0
+            elif check_exit_combination(key):  # Check for the exit combination (Shift+0)
+                EXIT_APP = True
+                break
+        else:
+            # No key pressed, check for timeout
+            if time.time() - last_activity_time >= timeout_duration:
+                break # Exit the admin panel loop
         
 def typewriter_effect(stdscr, y, text, color_pair, center_x):
     for i, ch in enumerate(text):
