@@ -348,7 +348,7 @@ def add_quote(stdscr, pending_quotes, approved_quotes, removed_quotes):
 def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
     global EXIT_APP
     curses.curs_set(0)  # Hide cursor
-    stdscr.timeout(100)  # Non-blocking mode
+    stdscr.timeout(100)  # Non-blocking mode initially
 
     current_index = 0
     last_activity_time = time.time()
@@ -452,11 +452,11 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
         # Process keyboard input with timeout
         stdscr.timeout(100) # Set a short timeout for getch
         key = stdscr.getch()
-        stdscr.timeout(-1) # Reset to blocking
 
         if key != curses.ERR:
             last_activity_time = time.time() # Update last activity time
             if key == 27:  # ESC key
+                stdscr.timeout(100)  # Reset timeout before returning
                 break
             elif key == curses.KEY_UP and pending_quotes:
                 current_index = (current_index - 1) % len(pending_quotes)
@@ -484,12 +484,17 @@ def admin_panel(stdscr, pending_quotes, approved_quotes, removed_quotes):
                         current_index = 0
             elif check_exit_combination(key):  # Check for the exit combination (Shift+0)
                 EXIT_APP = True
+                stdscr.timeout(100)  # Reset timeout before returning
                 break
         else:
             # No key pressed, check for timeout
             if time.time() - last_activity_time >= timeout_duration:
+                stdscr.timeout(100)  # Reset timeout before returning
                 break # Exit the admin panel loop
-        
+
+    # Ensure timeout is reset when exiting the admin panel
+    stdscr.timeout(100)
+
 def typewriter_effect(stdscr, y, text, color_pair, center_x):
     for i, ch in enumerate(text):
         stdscr.addstr(y, center_x + i, ch, color_pair | curses.A_BOLD)
