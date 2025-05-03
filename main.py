@@ -16,6 +16,11 @@ REMOVED_QUOTES_FILE = "removed_quotes.json"
 # Flag to control application exit
 EXIT_APP = False
 
+ERROR_BEEP_COOLDOWN = False
+ERROR_BEEP_COUNT = 0
+ERROR_BEEP_RESET_TIME = 0
+
+
 # Detect if we're running on a Raspberry Pi or another system
 IS_RASPBERRY_PI = platform.system() == "Linux" and os.path.exists("/sys/firmware/devicetree/base/model") and "raspberry pi" in open("/sys/firmware/devicetree/base/model").read().lower()
 
@@ -140,6 +145,27 @@ def play_beep():
 
 def play_error_beep():
     """Play an error beep sound when user reaches character limit"""
+    global ERROR_BEEP_COOLDOWN, ERROR_BEEP_COUNT, ERROR_BEEP_RESET_TIME
+    
+    # Check if we're in cooldown or if we've reached the limit
+    current_time = time.time()
+    
+    # Reset the counter if enough time has passed
+    if current_time > ERROR_BEEP_RESET_TIME:
+        ERROR_BEEP_COUNT = 0
+        ERROR_BEEP_COOLDOWN = False
+        ERROR_BEEP_RESET_TIME = current_time + 2.0  # Reset counter after 2 seconds
+    
+    # If we're in cooldown or have reached max beeps, do nothing
+    if ERROR_BEEP_COOLDOWN or ERROR_BEEP_COUNT >= 3:
+        if not ERROR_BEEP_COOLDOWN:
+            ERROR_BEEP_COOLDOWN = True
+        return
+    
+    # Increment counter
+    ERROR_BEEP_COUNT += 1
+    
+    # Original beep code
     if HAS_BUZZER:
         # Error sound pattern: high tone → low tone 
         # First a short high-pitched beep
@@ -616,6 +642,7 @@ def main(stdscr):
                 chosen_index = random.choice(available_indices)
                 current_quote = quotes[chosen_index]
                 displayed_indices.append(chosen_index)
+                
 
         if current_quote:
             # Centering the content vertically between the ASCII art and the border
@@ -677,6 +704,22 @@ def main(stdscr):
                 if newly_added_quote:
                     current_quote = newly_added_quote
                     displayed_indices = []
+
+                    if newly_added_quote:
+                        current_quote = newly_added_quote
+                        displayed_indices = []
+                        
+                        # Add a 1-second delay where all keyboard input is ignored
+                        stdscr.nodelay(True)  # Set non-blocking mode
+                        ignore_start_time = time.time()
+                        while time.time() - ignore_start_time < 1.0:
+                            # Flush any keyboard input during this period
+                            while stdscr.getch() != curses.ERR:
+                                pass
+                            time.sleep(0.01)  # Small sleep to prevent CPU hogging
+                        stdscr.nodelay(False)  # Reset to blocking mode
+                        
+                        break
                 break
             time.sleep(0.1)
 
