@@ -366,8 +366,15 @@ def add_quote(stdscr, pending_quotes, approved_quotes, removed_quotes):
             pending_quotes.append(new_quote)
             save_quotes(pending_quotes, PENDING_QUOTES_FILE)
             play_success_jingle()  # Play success jingle after quote is added
+            
+            # Make sure we're in non-blocking mode before returning
+            stdscr.nodelay(True)
+            stdscr.timeout(100)
             return new_quote  # Return the newly added quote
 
+    # Make sure we're in non-blocking mode before returning (in any case)
+    stdscr.nodelay(True)
+    stdscr.timeout(100)
     return None
 
 
@@ -667,6 +674,10 @@ def main(stdscr):
 
         stdscr.refresh()
 
+        # Make sure we're in non-blocking mode before waiting for input
+        stdscr.nodelay(True)
+        stdscr.timeout(100)
+
         # Wait 5 seconds while listening for keys
         start_time = time.time()
         newly_added_quote = None
@@ -694,6 +705,9 @@ def main(stdscr):
             elif key == 16:  # CTRL+P (ASCII 16 is DLE, which is what CTRL+P sends)
                 # No beep when entering admin panel
                 admin_panel(stdscr, pending_quotes, quotes, removed_quotes)
+                # Ensure we're in non-blocking mode after admin panel
+                stdscr.nodelay(True)
+                stdscr.timeout(100)
                 current_quote = None  # Reset to show a random quote after admin panel
                 break
             elif key == 27:  # ESC key
@@ -701,25 +715,22 @@ def main(stdscr):
                 break
             elif key != curses.ERR:  # Check if any other key was pressed
                 newly_added_quote = add_quote(stdscr, pending_quotes, quotes, removed_quotes)
+                
+                # Ensure we're in non-blocking mode after adding quote
+                stdscr.nodelay(True)
+                stdscr.timeout(100)
+                
                 if newly_added_quote:
                     current_quote = newly_added_quote
                     displayed_indices = []
-
-                    if newly_added_quote:
-                        current_quote = newly_added_quote
-                        displayed_indices = []
-                        
-                        # Add a 1-second delay where all keyboard input is ignored
-                        stdscr.nodelay(True)  # Set non-blocking mode
-                        ignore_start_time = time.time()
-                        while time.time() - ignore_start_time < 1.0:
-                            # Flush any keyboard input during this period
-                            while stdscr.getch() != curses.ERR:
-                                pass
-                            time.sleep(0.01)  # Small sleep to prevent CPU hogging
-                        stdscr.nodelay(False)  # Reset to blocking mode
-                        
-                        break
+                    
+                    # Add a 1-second delay where all keyboard input is ignored
+                    ignore_start_time = time.time()
+                    while time.time() - ignore_start_time < 1.0:
+                        # Flush any keyboard input during this period
+                        while stdscr.getch() != curses.ERR:
+                            pass
+                        time.sleep(0.01)  # Small sleep to prevent CPU hogging
                 break
             time.sleep(0.1)
 
