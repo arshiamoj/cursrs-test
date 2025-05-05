@@ -82,9 +82,9 @@ def boot_sequence(stdscr):
     # Wait 1 second after showing Retro Wall before continuing
     time.sleep(1.0)
     
-    # Display version - only one line below the title
+    # Display version - directly below the title with no gap
     version_text = "v1.0"
-    version_y = title_start_y + len(ascii_title_lines) + 1
+    version_y = title_start_y + len(ascii_title_lines)
     stdscr.addstr(version_y, (width // 2) - (len(version_text) // 2), version_text, curses.color_pair(2))
     stdscr.refresh()
     time.sleep(0.2)
