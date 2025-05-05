@@ -70,7 +70,7 @@ def boot_sequence(stdscr):
     ascii_title_lines = ascii_title.splitlines()
     
     # Display ASCII title with single blink-in effect
-    title_start_y = (height // 2) - (len(ascii_title_lines) // 2) - 5
+    title_start_y = (height // 2) - (len(ascii_title_lines) // 2) - 6
     
     # Display the title directly (blink in once from black)
     for i, line in enumerate(ascii_title_lines):
