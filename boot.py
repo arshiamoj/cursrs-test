@@ -24,7 +24,7 @@ def blink_text(stdscr, y, text, color_pair, center_x, times=1, on_time=0.3, off_
     stdscr.addstr(y, center_x, text, color_pair | curses.A_BOLD)
     stdscr.refresh()
 
-def loading_animation(stdscr, y, width, color_pair, duration=1.0):
+def loading_animation(stdscr, y, width, color_pair, duration=2.0):
     """Display a simple loading bar animation"""
     bar_width = 40
     start_x = (width // 2) - (bar_width // 2)
@@ -82,7 +82,7 @@ def boot_sequence(stdscr):
     # Wait 1 second after showing Retro Wall before continuing
     time.sleep(1.0)
     
-    # Display version
+    # Display version - only one line below the title
     version_text = "v1.0"
     version_y = title_start_y + len(ascii_title_lines) + 1
     stdscr.addstr(version_y, (width // 2) - (len(version_text) // 2), version_text, curses.color_pair(2))
@@ -96,15 +96,12 @@ def boot_sequence(stdscr):
     stdscr.refresh()
     time.sleep(0.2)
     
-    # Display loading bar
-    loading_animation(stdscr, init_y + 2, width, curses.color_pair(1), 1.0)
+    # Display loading bar (slower)
+    loading_animation(stdscr, init_y + 2, width, curses.color_pair(1), 2.0)
     
-    # Display system components loading (faster)
+    # Display only one system component loading
     components = [
-        "Loading system modules",
-        "Checking memory",
-        "Initializing display",
-        "Loading quotes database"
+        "Loading system modules"
     ]
     
     comp_y = init_y + 4
@@ -112,7 +109,7 @@ def boot_sequence(stdscr):
         comp_text = f"{component}... "
         stdscr.addstr(comp_y + i, (width // 2) - 20, comp_text, curses.color_pair(1))
         stdscr.refresh()
-        time.sleep(0.15)
+        time.sleep(0.5)
         stdscr.addstr(comp_y + i, (width // 2) - 20 + len(comp_text), "OK", curses.color_pair(2))
         stdscr.refresh()
     
