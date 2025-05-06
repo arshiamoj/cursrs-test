@@ -547,6 +547,20 @@ def check_exit_combination(key):
     return key == 41  # ASCII code for the ")" character (Shift+0)
 
 def main(stdscr):
+    print("App started...")
+
+    input1 = input("Waiting for key a...\n")
+    print(f"You pressed: {input1}")
+
+    name = input("Enter your name:\n")
+    print(f"Hello, {name}!")
+
+    quote = input("Enter a quote:\n")
+    print(f"Quote received: {quote}")
+
+    print("App completed. Waiting for manual decision...")
+
+
     global EXIT_APP
     curses.curs_set(0)  # Hide cursor
     stdscr.timeout(100)  # Non-blocking getch
