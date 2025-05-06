@@ -1,6 +1,14 @@
 [
   {
-    "name": "Arshia",
-    "quote": "Beauty will save the world."
+    "name": "Nikola Tesla",
+    "quote": "The future is mine."
+  },
+  {
+    "name": "Isaac Newton",
+    "quote": "Truth is found in simplicity."
+  },
+  {
+    "name": "Johann ebastian Bach",
+    "quote": "I don't create, I generate."
   }
 ]
